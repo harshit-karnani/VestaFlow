@@ -2,19 +2,19 @@ import React, { useState, useEffect } from 'react';
 import { useAccount, useReadContract, useWriteContract, useWaitForTransactionReceipt, useBlock } from 'wagmi';
 import { formatUnits, isAddress } from 'viem';
 import { vestingWalletAbi, erc20Abi } from '../config/abi';
-import { Bolt, Activity, Cpu, RefreshCw } from 'lucide-react';
-import { getDemoStats } from '../utils/demoMath';
+import { Bolt, Activity, Cpu, RefreshCw, AlertCircle } from 'lucide-react';
 
 export const ClaimDashboard: React.FC = () => {
   const { address } = useAccount();
-  const [vestingAddr, setVestingAddr] = useState('');
-  const [tokenAddr, setTokenAddr] = useState('');
-  const [hasLookedUp, setHasLookedUp] = useState(false);
+  const [vestingAddr, setVestingAddr] = useState(() => localStorage.getItem('vf_vestingAddr') || '');
+  const [tokenAddr, setTokenAddr] = useState(() => localStorage.getItem('vf_tokenAddr') || '');
+  const [hasLookedUp, setHasLookedUp] = useState(() => localStorage.getItem('vf_hasLookedUp') === 'true');
 
   const { data: block } = useBlock({ watch: true });
   const [currentTimestamp, setCurrentTimestamp] = useState<bigint>(0n);
   const [pulse, setPulse] = useState(false);
   const [lastMinute, setLastMinute] = useState(-1);
+  const [isRefreshing, setIsRefreshing] = useState(false);
 
   useEffect(() => {
     if (block?.timestamp) {
@@ -70,7 +70,19 @@ export const ClaimDashboard: React.FC = () => {
     query: { enabled: hasLookedUp && isAddress(tokenAddr) },
   });
 
-  const { writeContract: claimTokens, isPending: isClaiming } = useWriteContract();
+  const { writeContract: claimTokens, isPending: isClaiming, data: claimTxHash } = useWriteContract();
+  const { isLoading: isConfirmingClaim, isSuccess: isClaimConfirmed } = useWaitForTransactionReceipt({ hash: claimTxHash });
+
+  const [showSuccess, setShowSuccess] = useState(false);
+
+  useEffect(() => {
+    if (isClaimConfirmed) {
+      refetchReleased();
+      refetchBalance();
+      setShowSuccess(true);
+      setTimeout(() => setShowSuccess(false), 5000);
+    }
+  }, [isClaimConfirmed, refetchReleased, refetchBalance]);
 
   const handleClaim = () => {
     if (!isAddress(vestingAddr) || !isAddress(tokenAddr)) return;
@@ -79,33 +91,38 @@ export const ClaimDashboard: React.FC = () => {
       abi: vestingWalletAbi,
       functionName: 'release',
       args: [tokenAddr as `0x${string}`],
-    }, {
-      onSuccess: () => {
-        setTimeout(() => {
-          refetchReleased();
-          refetchBalance();
-        }, 2000);
-      }
     });
+  };
+
+  const handleRefresh = async () => {
+    if (isRefreshing) return;
+    setIsRefreshing(true);
+    try {
+      await Promise.all([refetchReleased(), refetchBalance()]);
+    } finally {
+      setTimeout(() => setIsRefreshing(false), 500); // Small delay for visual feedback
+    }
   };
 
   const totalTokensRaw = (tokenBalance || 0n) + (releasedRaw || 0n);
   const totalTokens = Number(formatUnits(totalTokensRaw, 18));
   const released = Number(formatUnits(releasedRaw || 0n, 18));
-  
+
   const start = Number(startTime || 0n);
   const dur = Number(duration || 1n);
   const now = Number(currentTimestamp);
 
-  // Progress logic using demoMath
-  const totalMonths = dur / (30 * 24 * 60 * 60); // Convert duration in seconds back to "Months"
-  const stats = getDemoStats(totalTokens, totalMonths, start, now);
-  
-  const vestedAmount = parseFloat(stats.claimable);
+  // Progress logic using actual linear vesting
+  const elapsed = Math.max(0, now - start);
+  const progress = dur > 0 ? Math.min(1, elapsed / dur) : 1;
+  const vestedAmount = totalTokens * progress;
   const claimable = Math.max(0, vestedAmount - released);
-  const displayClaimable = hasLookedUp ? claimable.toFixed(6) : "0.000000";
+  const displayClaimable = hasLookedUp ? claimable.toFixed(4) : "0.0000";
 
-  const currentMinuteOfHour = stats.currentMinuteOfHour;
+  const isFuture = now < start;
+  const timeUntilStartSecs = isFuture ? start - now : 0;
+
+  const currentMinuteOfHour = Math.floor((elapsed % 3600) / 60);
 
   useEffect(() => {
     const minutesElapsedTotal = now > start ? Math.floor((now - start) / 60) : 0;
@@ -126,30 +143,36 @@ export const ClaimDashboard: React.FC = () => {
           <div className="space-y-4">
             <div>
               <label className="font-mono text-xs font-bold text-stone-500 uppercase tracking-widest block mb-2">Vesting Contract Address</label>
-              <input 
-                type="text" 
+              <input
+                type="text"
                 value={vestingAddr}
-                onChange={e => setVestingAddr(e.target.value)}
+                onChange={e => { const v = e.target.value.trim(); setVestingAddr(v); localStorage.setItem('vf_vestingAddr', v); }}
                 className="w-full bg-[#f9f9f7] border border-[#e2e2d9] p-3 font-mono text-sm focus:outline-none focus:border-primary focus:ring-1 focus:ring-primary rounded-none"
                 placeholder="0x..."
               />
             </div>
             <div>
               <label className="font-mono text-xs font-bold text-stone-500 uppercase tracking-widest block mb-2">Token Address</label>
-              <input 
-                type="text" 
+              <input
+                type="text"
                 value={tokenAddr}
-                onChange={e => setTokenAddr(e.target.value)}
+                onChange={e => { const v = e.target.value.trim(); setTokenAddr(v); localStorage.setItem('vf_tokenAddr', v); }}
                 className="w-full bg-[#f9f9f7] border border-[#e2e2d9] p-3 font-mono text-sm focus:outline-none focus:border-primary focus:ring-1 focus:ring-primary rounded-none"
                 placeholder="0x..."
               />
             </div>
-            <button 
-              onClick={() => setHasLookedUp(true)}
+            <button
+              onClick={() => { setHasLookedUp(true); localStorage.setItem('vf_hasLookedUp', 'true'); }}
               disabled={!isAddress(vestingAddr) || !isAddress(tokenAddr)}
               className="w-full bg-primary text-white font-mono font-bold text-sm tracking-widest uppercase py-4 mt-4 disabled:opacity-50 hover:bg-orange-600 transition-colors"
             >
-              Initialize Node
+              LOAD VESTING DATA
+            </button>
+            <button
+              onClick={() => { setVestingAddr(''); setTokenAddr(''); setHasLookedUp(false); localStorage.removeItem('vf_vestingAddr'); localStorage.removeItem('vf_tokenAddr'); localStorage.removeItem('vf_hasLookedUp'); }}
+              className="w-full text-stone-400 font-mono text-xs uppercase tracking-widest py-2 hover:text-stone-700 transition-colors"
+            >
+              Reset / Use Different Contract
             </button>
           </div>
         </div>
@@ -164,9 +187,9 @@ export const ClaimDashboard: React.FC = () => {
           <span className="font-mono text-xs text-primary mb-2 block tracking-widest uppercase font-bold">TERMINAL ACCESS // NODE_V1</span>
           <h2 className="font-display text-4xl text-stone-900 font-bold uppercase">04 // CLAIMS & SETTLEMENT</h2>
         </div>
-        <div className="text-right">
-          <div className="font-mono text-xs text-stone-400 uppercase tracking-tighter">LAST UPDATED</div>
-          <div className="font-mono text-lg font-medium text-stone-900">{new Date(now * 1000).toISOString().replace('T', ' ').substring(0, 19)} UTC</div>
+        <div className="text-right flex flex-col items-end gap-1">
+          <div className="font-mono text-xs text-stone-400 uppercase tracking-tighter">CURRENT BLOCK TIME</div>
+          <div className="font-mono text-lg font-medium text-stone-900">{new Date(now * 1000).toLocaleString()} <span className="text-stone-400 text-sm ml-2">({new Date(now * 1000).toISOString().substring(11, 19)} UTC)</span></div>
         </div>
       </div>
 
@@ -176,35 +199,54 @@ export const ClaimDashboard: React.FC = () => {
           <div className="flex flex-col gap-8">
             <div>
               <p className="font-mono text-xs text-stone-500 uppercase tracking-[0.2em] mb-4 flex items-center gap-2">
-                <span className="w-3 h-3 bg-success"></span>
-                AVAILABLE TO CLAIM
+                <span className={`w-3 h-3 ${isFuture ? 'bg-orange-400' : 'bg-success'}`}></span>
+                {isFuture ? 'VESTING PENDING' : 'AVAILABLE TO CLAIM'}
               </p>
-              <h1 className={`font-display text-7xl font-bold tracking-tight tabular-nums transition-colors duration-500 ${pulse ? 'text-primary' : 'text-success'}`}>
-                {displayClaimable} <span className="text-4xl">{tokenSymbol || 'TKN'}</span>
-              </h1>
-              
+
+              {isFuture ? (
+                <h1 className="font-display text-5xl font-bold tracking-tight text-orange-400">
+                  STARTS IN {Math.ceil(timeUntilStartSecs / 60)} MINS
+                </h1>
+              ) : (
+                <h1 className={`font-display text-7xl font-bold tracking-tight tabular-nums transition-colors duration-500 ${pulse ? 'text-primary' : 'text-success'}`}>
+                  {displayClaimable} <span className="text-4xl">{tokenSymbol || 'TKN'}</span>
+                </h1>
+              )}
+
               {/* 60-Segment Progress Bar */}
               <div className="mt-8">
-                <div className="font-mono text-xs text-stone-400 uppercase mb-2">CURRENT HOUR ACCRUAL (MINUTES)</div>
+                <div className="font-mono text-xs text-stone-400 uppercase mb-2">OVERALL VESTING PROGRESS ({Math.floor(progress * 100)}%)</div>
                 <div className="flex gap-1 h-6">
                   {Array.from({ length: 60 }).map((_, i) => (
-                    <div 
-                      key={i} 
-                      className={`flex-1 ${i < currentMinuteOfHour ? 'bg-success' : 'bg-stone-300'} transition-colors duration-300`}
+                    <div
+                      key={i}
+                      className={`flex-1 ${i < Math.floor(progress * 60) ? 'bg-success' : 'bg-stone-300'} transition-colors duration-300`}
                     />
                   ))}
                 </div>
               </div>
             </div>
 
-            <button 
-              onClick={handleClaim}
-              disabled={isClaiming || claimable <= 0}
-              className="w-full bg-primary text-white py-8 flex items-center justify-center gap-6 group hover:brightness-110 transition-none disabled:opacity-50 disabled:cursor-not-allowed"
-            >
-              <span className="font-display font-bold uppercase text-4xl">{isClaiming ? 'PROCESSING...' : 'CLAIM ASSETS'}</span>
-              <Bolt className="w-10 h-10" />
-            </button>
+            <div className="space-y-3">
+              <div className="bg-orange-500/10 border border-orange-500/20 px-4 py-3 flex items-start gap-3">
+                <AlertCircle className="w-5 h-5 text-orange-500 shrink-0 mt-0.5" />
+                <div>
+                  <h4 className="font-mono text-xs font-bold text-orange-600 uppercase tracking-widest mb-1">Strict Gas Limiter Active</h4>
+                  <p className="text-sm text-stone-600">To prevent excessive Sepolia network fees, withdrawals are locked until your claimable balance reaches <strong>60% of the total allocation</strong> (or the stream fully vests).</p>
+                </div>
+              </div>
+
+              <button
+                onClick={handleClaim}
+                disabled={isClaiming || isConfirmingClaim || claimable <= 0 || isFuture || (released === 0 && claimable < totalTokens * 0.6 && progress < 1)}
+                className="w-full bg-primary text-white py-8 flex items-center justify-center gap-6 group hover:brightness-110 transition-none disabled:opacity-50 disabled:cursor-not-allowed"
+              >
+                <span className={`font-display font-bold uppercase ${showSuccess ? 'text-lg tracking-widest' : 'text-4xl'}`}>
+                  {showSuccess ? 'Tokens Discharged! Check your Wallet.' : isFuture ? 'NOT YET STARTED' : (released === 0 && claimable < totalTokens * 0.6 && progress < 1) ? '60% MINIMUM REQUIRED' : isClaiming ? 'SIGNING...' : isConfirmingClaim ? 'CONFIRMING...' : 'CLAIM ASSETS'}
+                </span>
+                {!showSuccess && <Bolt className={`w-10 h-10 ${(isClaiming || isConfirmingClaim) ? 'animate-pulse' : ''}`} />}
+              </button>
+            </div>
 
             <div className="grid grid-cols-3 gap-8 pt-8 border-t border-stone-300">
               <div>
@@ -217,7 +259,27 @@ export const ClaimDashboard: React.FC = () => {
               </div>
               <div>
                 <div className="font-mono text-xs text-stone-400 uppercase mb-1">ALREADY RELEASED</div>
-                <div className="font-mono text-lg font-medium text-stone-900">{released.toLocaleString(undefined, { maximumFractionDigits: 2 })}</div>
+                <div className="flex items-center gap-4">
+                  <div className="font-mono text-lg font-medium text-stone-900">{released.toLocaleString(undefined, { maximumFractionDigits: 2 })}</div>
+                  <button 
+                    onClick={async () => {
+                      if (window.ethereum) {
+                        try {
+                          await window.ethereum.request({
+                            method: 'wallet_watchAsset',
+                            params: {
+                              type: 'ERC20',
+                              options: { address: tokenAddr, symbol: tokenSymbol || 'TKN', decimals: 18 },
+                            },
+                          });
+                        } catch (e) { console.error(e); }
+                      }
+                    }}
+                    className="text-[9px] bg-stone-300 hover:bg-stone-400 px-2 py-1 rounded text-stone-700 uppercase tracking-widest transition-colors shrink-0"
+                  >
+                    Add to Wallet
+                  </button>
+                </div>
               </div>
             </div>
           </div>
@@ -258,7 +320,7 @@ export const ClaimDashboard: React.FC = () => {
                   <div className="font-mono text-xs text-success">ACTIVE // EMITTING</div>
                 </div>
               </div>
-              
+
               <div className="h-24 w-full bg-stone-800 relative overflow-hidden">
                 <div className="absolute inset-0 opacity-30" style={{ backgroundImage: 'repeating-linear-gradient(45deg, transparent, transparent 10px, #ff5f1f 10px, #ff5f1f 11px)' }}></div>
                 <div className="absolute bottom-0 left-0 right-0 h-1/2 bg-gradient-to-t from-primary/20 to-transparent"></div>
@@ -275,7 +337,14 @@ export const ClaimDashboard: React.FC = () => {
           <h3 className="font-mono text-xs text-white uppercase tracking-widest font-bold">TRANSACTION HISTORY // LOG</h3>
           <div className="flex gap-4">
             <button className="font-mono text-xs text-white/50 hover:text-white uppercase transition-none">EXPORT CSV</button>
-            <button className="font-mono text-xs text-white/50 hover:text-white uppercase transition-none">REFRESH</button>
+            <button
+              onClick={handleRefresh}
+              disabled={isRefreshing}
+              className="font-mono text-xs text-white/50 hover:text-white uppercase transition-none flex items-center gap-2"
+            >
+              {isRefreshing && <RefreshCw className="w-3 h-3 animate-spin" />}
+              REFRESH
+            </button>
           </div>
         </div>
         <div className="overflow-x-auto">

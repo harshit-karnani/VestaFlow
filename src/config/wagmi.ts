@@ -7,14 +7,14 @@ export const config = getDefaultConfig({
   projectId: 'demo-project-id-vestaflow', // Replace with WalletConnect project ID for production
   chains: [sepolia],
   transports: {
-    [sepolia.id]: http(),
+    [sepolia.id]: http('https://eth-sepolia.g.alchemy.com/v2/4grcsnnMUq2d97xhal4aK'),
   },
   ssr: false,
 });
 
 // Factory contract address on Sepolia — must be deployed first
 // For demo/hackathon, we'll use a placeholder that users deploy themselves
-export const FACTORY_ADDRESS = '0x3e3a25a89Ae311540fA852507BE5362e2802C788' as `0x${string}`;
+export const FACTORY_ADDRESS = '0xe91B9639687D68E9c0784a0aB361500F1A3dbE35' as `0x${string}`;
 
 // Sepolia block explorer
 export const EXPLORER_BASE = 'https://sepolia.etherscan.io';

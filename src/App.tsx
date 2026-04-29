@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import { WagmiProvider } from 'wagmi';
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
 import { RainbowKitProvider, ConnectButton } from '@rainbow-me/rainbowkit';
@@ -6,12 +6,19 @@ import '@rainbow-me/rainbowkit/styles.css';
 import { config } from './config/wagmi';
 import { DeployWizard } from './components/DeployWizard';
 import { ClaimDashboard } from './components/ClaimDashboard';
+import { StreamRegistry } from './components/StreamRegistry';
 import { LayoutDashboard, Network, Wallet, Coins, Settings, Bell, HelpCircle, FileText } from 'lucide-react';
 
 const queryClient = new QueryClient();
 
 const App: React.FC = () => {
-  const [tab, setTab] = useState<'deploy' | 'claim'>('claim');
+  const [tab, setTab] = useState<'deploy' | 'registry' | 'claim'>('claim');
+  const [globalTime, setGlobalTime] = useState(Date.now());
+
+  useEffect(() => {
+    const timer = setInterval(() => setGlobalTime(Date.now()), 1000);
+    return () => clearInterval(timer);
+  }, []);
 
   return (
     <WagmiProvider config={config}>
@@ -32,19 +39,15 @@ const App: React.FC = () => {
                     ${tab === 'deploy' ? 'border-l-4 border-[#ff5f1f] bg-stone-300 text-stone-900 font-bold' : 'border-l-4 border-transparent text-stone-500 hover:bg-stone-300'}`}
                 >
                   <Settings className="w-4 h-4" />
-                  01 // CONFIG
+                  01 // ALLOCATE
                 </button>
                 <button
-                  className="flex items-center gap-3 px-6 py-4 font-mono text-[11px] tracking-widest text-stone-500 border-l-4 border-transparent hover:bg-stone-300 transition-all duration-75 uppercase text-left opacity-50 cursor-not-allowed"
+                  onClick={() => setTab('registry')}
+                  className={`flex items-center gap-3 px-6 py-4 font-mono text-[11px] tracking-widest uppercase transition-all duration-75 text-left
+                    ${tab === 'registry' ? 'border-l-4 border-[#ff5f1f] bg-stone-300 text-stone-900 font-bold' : 'border-l-4 border-transparent text-stone-500 hover:bg-stone-300'}`}
                 >
                   <Network className="w-4 h-4" />
-                  02 // NODES
-                </button>
-                <button
-                  className="flex items-center gap-3 px-6 py-4 font-mono text-[11px] tracking-widest text-stone-500 border-l-4 border-transparent hover:bg-stone-300 transition-all duration-75 uppercase text-left opacity-50 cursor-not-allowed"
-                >
-                  <Wallet className="w-4 h-4" />
-                  03 // ASSETS
+                  02 // STREAM REGISTRY
                 </button>
                 <button
                   onClick={() => setTab('claim')}
@@ -52,7 +55,7 @@ const App: React.FC = () => {
                     ${tab === 'claim' ? 'border-l-4 border-[#ff5f1f] bg-stone-300 text-stone-900 font-bold' : 'border-l-4 border-transparent text-stone-500 hover:bg-stone-300'}`}
                 >
                   <Coins className="w-4 h-4" />
-                  04 // CLAIMS
+                  03 // CLAIM PORTAL
                 </button>
               </nav>
 
@@ -81,14 +84,15 @@ const App: React.FC = () => {
                 <div className="flex items-center gap-12">
                   <div className="text-xl font-display font-black tracking-tighter text-stone-900 uppercase">VESTAFLOW</div>
                   <nav className="hidden lg:flex items-center gap-8 font-mono uppercase tracking-widest text-xs">
-                    <button className="text-stone-500 font-medium hover:text-[#ff5f1f] transition-none">DASHBOARD</button>
-                    <button className="text-stone-500 font-medium hover:text-[#ff5f1f] transition-none">ASSETS</button>
-                    <button className="text-stone-500 font-medium hover:text-[#ff5f1f] transition-none">TERMINAL</button>
-                    <button className="text-stone-900 border-b-2 border-[#ff5f1f] pb-1 font-bold">REPORTS</button>
+                    <button className="text-stone-900 border-b-2 border-[#ff5f1f] pb-1 font-bold">DASHBOARD</button>
                   </nav>
                 </div>
 
                 <div className="flex items-center gap-6">
+                  <div className="font-mono text-[10px] text-stone-500 text-right uppercase tracking-widest hidden md:block border-r border-stone-300 pr-6">
+                    <div className="font-bold text-stone-900">{new Date(globalTime).toLocaleTimeString()} LOCAL</div>
+                    <div>{new Date(globalTime).toISOString().substring(11, 19)} UTC</div>
+                  </div>
                   <div className="flex items-center gap-4 text-stone-500">
                     <Settings className="w-5 h-5 cursor-pointer hover:text-[#ff5f1f]" />
                     <Bell className="w-5 h-5 cursor-pointer hover:text-[#ff5f1f]" />
@@ -136,6 +140,10 @@ const App: React.FC = () => {
               {tab === 'deploy' ? (
                 <div className="p-16">
                   <DeployWizard />
+                </div>
+              ) : tab === 'registry' ? (
+                <div className="p-16">
+                  <StreamRegistry />
                 </div>
               ) : (
                 <ClaimDashboard />

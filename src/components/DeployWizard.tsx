@@ -1,19 +1,25 @@
 import React, { useState, useMemo } from 'react';
-import { useAccount, useWriteContract, useWaitForTransactionReceipt, useChainId } from 'wagmi';
+import { useAccount, useWriteContract, useWaitForTransactionReceipt, useChainId, useBlock } from 'wagmi';
 import { parseUnits, isAddress, decodeEventLog } from 'viem';
 import { factoryAbi } from '../config/abi';
 import { FACTORY_ADDRESS, getExplorerLink } from '../config/wagmi';
-import { Coins, User, Clock, ChevronRight, ChevronLeft, Check, Loader2, ExternalLink, AlertCircle, Sparkles, Copy, Calendar, Timer } from 'lucide-react';
+import { Coins, User, Clock, ChevronRight, ChevronLeft, Check, Loader2, ExternalLink, AlertCircle, Sparkles, Copy, Calendar, Timer, UploadCloud } from 'lucide-react';
 
 // Testing mode: duration in minutes for quick testing
+
+interface Allocation {
+  address: string;
+  amount: string;
+}
 
 interface FormData {
   tokenName: string;
   tokenSymbol: string;
   totalSupply: string;
   beneficiary: string;
-  vestingStartDateTime: string;
+  vestingStartDelayMinutes: string;  // How many minutes from NOW to start (not a datetime string)
   vestingMinutes: string;
+  allocations: Allocation[];
 }
 
 interface DeployResult {
@@ -27,26 +33,29 @@ const STEPS = ['Token Details', 'Vesting Setup', 'Review & Deploy'];
 export const DeployWizard: React.FC = () => {
   const { address, isConnected } = useAccount();
   const chainId = useChainId();
+  const { data: block } = useBlock();
   const [step, setStep] = useState(0);
-  const [deployResult, setDeployResult] = useState<DeployResult | null>(null);
+  const [deployQueue, setDeployQueue] = useState<Allocation[]>([]);
+  const [currentDeployIndex, setCurrentDeployIndex] = useState(-1);
+  const [deployResults, setDeployResults] = useState<DeployResult[]>([]);
   const [copied, setCopied] = useState('');
-
-  const nowLocal = new Date(Date.now() + 60000).toISOString().slice(0, 16);
+  const [tempAmount, setTempAmount] = useState('');
 
   const [form, setForm] = useState<FormData>({
     tokenName: '',
     tokenSymbol: '',
     totalSupply: '',
     beneficiary: '',
-    vestingStartDateTime: nowLocal,
+    vestingStartDelayMinutes: '5', // Default: start 5 minutes from now
     vestingMinutes: '',
+    allocations: [],
   });
 
   const { writeContract, data: txHash, error: writeError, isPending: isWriting, reset } = useWriteContract();
 
   const { isLoading: isConfirming, isSuccess: isConfirmed, data: receipt } = useWaitForTransactionReceipt({ hash: txHash });
 
-  // Parse deployed addresses from tx receipt logs
+  // Parse deployed addresses and trigger next queue item
   React.useEffect(() => {
     if (isConfirmed && receipt && txHash) {
       try {
@@ -59,11 +68,19 @@ export const DeployWizard: React.FC = () => {
         if (deployedEvent) {
           const decoded = decodeEventLog({ abi: factoryAbi, data: deployedEvent.data, topics: deployedEvent.topics });
           if (decoded.eventName === 'Deployed') {
-            setDeployResult({
+            const newRes = {
               tokenAddress: (decoded.args as any).token || deployedEvent.topics[2] ? `0x${deployedEvent.topics[2]?.slice(26)}` : '',
               vestingAddress: (decoded.args as any).vestingWallet || deployedEvent.topics[3] ? `0x${deployedEvent.topics[3]?.slice(26)}` : '',
               txHash,
+            };
+            setDeployResults(prev => {
+               if (prev.some(r => r.txHash === txHash)) return prev;
+               return [...prev, newRes];
             });
+            setTimeout(() => {
+              reset();
+              setCurrentDeployIndex(prev => prev + 1);
+            }, 1000);
           }
         }
       } catch (e) {
@@ -71,6 +88,17 @@ export const DeployWizard: React.FC = () => {
       }
     }
   }, [isConfirmed, receipt, txHash]);
+
+  const handleAddManual = () => {
+    if (isAddress(form.beneficiary) && Number(tempAmount) > 0) {
+      setForm(prev => ({
+        ...prev,
+        allocations: [...prev.allocations, { address: prev.beneficiary, amount: tempAmount }],
+        beneficiary: ''
+      }));
+      setTempAmount('');
+    }
+  };
 
   const updateForm = (key: keyof FormData, value: string) => {
     setForm((prev) => ({ ...prev, [key]: value }));
@@ -87,13 +115,12 @@ export const DeployWizard: React.FC = () => {
       else if (Number(form.totalSupply) <= 0) e.totalSupply = 'Supply must be greater than 0';
     }
     if (step >= 1) {
-      if (!form.beneficiary) e.beneficiary = 'Beneficiary address is required';
-      else if (!isAddress(form.beneficiary)) e.beneficiary = 'Invalid Ethereum address';
-      if (!form.vestingStartDateTime) e.vestingStartDateTime = 'Start date is required';
-      else {
-        const startTs = new Date(form.vestingStartDateTime).getTime() / 1000;
-        if (startTs <= Date.now() / 1000 - 60) e.vestingStartDateTime = 'Start time must not be in the past';
+      if (form.allocations.length === 0) {
+        if (!form.beneficiary) e.beneficiary = 'Beneficiary address is required';
+        else if (!isAddress(form.beneficiary)) e.beneficiary = 'Invalid Ethereum address';
       }
+      if (!form.vestingStartDelayMinutes) e.vestingStartDelayMinutes = 'Start delay is required';
+      else if (Number(form.vestingStartDelayMinutes) < 1) e.vestingStartDelayMinutes = 'Start delay must be at least 1 minute';
       if (!form.vestingMinutes) e.vestingMinutes = 'Duration is required';
       else if (Number(form.vestingMinutes) <= 0) e.vestingMinutes = 'Duration must be at least 1 minute';
       else if (Number(form.vestingMinutes) > 1440) e.vestingMinutes = 'Duration cannot exceed 1440 minutes (24h)';
@@ -101,9 +128,14 @@ export const DeployWizard: React.FC = () => {
     return e;
   }, [form, step]);
 
+  const totalAllocatedFromCSV = form.allocations.reduce((acc, curr) => acc + Number(curr.amount || 0), 0);
+  const totalUsers = form.allocations.length > 0 ? form.allocations.length : (isAddress(form.beneficiary) ? 1 : 0);
+  const allocatedTokensDisplay = form.allocations.length > 0 ? totalAllocatedFromCSV : (form.totalSupply ? Number(form.totalSupply) : 0);
+  const isValidAllocationSummary = totalUsers > 0 && allocatedTokensDisplay > 0;
+
   const canProceed = (s: number) => {
     if (s === 0) return form.tokenName && form.tokenSymbol && Number(form.totalSupply) > 0;
-    if (s === 1) return isAddress(form.beneficiary) && form.vestingStartDateTime && Number(form.vestingMinutes) > 0 && Number(form.vestingMinutes) <= 1440;
+    if (s === 1) return isValidAllocationSummary && Number(form.vestingStartDelayMinutes) >= 1 && Number(form.vestingMinutes) > 0 && Number(form.vestingMinutes) <= 1440;
     return true;
   };
 
@@ -111,23 +143,64 @@ export const DeployWizard: React.FC = () => {
 
   const totalMinutes = Number(form.vestingMinutes || 0);
   const durationSeconds = totalMinutes * 60;
-  const vestingEndDate = form.vestingStartDateTime && durationSeconds > 0
-    ? new Date(new Date(form.vestingStartDateTime).getTime() + durationSeconds * 1000)
+  const delayMinutes = Number(form.vestingStartDelayMinutes || 5);
+  const vestingEndDate = totalMinutes > 0
+    ? new Date(Date.now() + delayMinutes * 60000 + durationSeconds * 1000)
     : null;
   const perMinuteEMI = totalMinutes > 0 && Number(form.totalSupply) > 0 ? Number(form.totalSupply) / totalMinutes : 0;
   const per5MinEMI = perMinuteEMI * 5;
 
-  const handleDeploy = () => {
-    const startTs = BigInt(Math.floor(new Date(form.vestingStartDateTime).getTime() / 1000));
-    const supply = parseUnits(form.totalSupply, 18);
-    const durSec = BigInt(durationSeconds);
-    writeContract({
-      address: FACTORY_ADDRESS,
-      abi: factoryAbi,
-      functionName: 'deployTokenAndVesting',
-      args: [form.tokenName, form.tokenSymbol, supply, form.beneficiary as `0x${string}`, startTs, durSec],
-    });
+  const handleFileUpload = (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0];
+    if (!file) return;
+    const reader = new FileReader();
+    reader.onload = (event) => {
+      const text = event.target?.result as string;
+      const lines = text.split('\\n').filter(l => l.trim() !== '');
+      const newAllocations: Allocation[] = [];
+      lines.forEach(line => {
+        const parts = line.split(',');
+        if (parts.length >= 2) {
+          const address = parts[0].trim();
+          const amount = parts[1].trim();
+          if (isAddress(address) && !isNaN(Number(amount))) {
+            newAllocations.push({ address, amount });
+          }
+        }
+      });
+      setForm(prev => ({ ...prev, allocations: newAllocations }));
+    };
+    reader.readAsText(file);
   };
+
+  const handleDeploy = () => {
+    const queue = form.allocations.length > 0 
+      ? form.allocations 
+      : [{ address: form.beneficiary, amount: form.totalSupply }];
+    setDeployQueue(queue);
+    setDeployResults([]);
+    setCurrentDeployIndex(0);
+  };
+
+  React.useEffect(() => {
+    if (currentDeployIndex >= 0 && currentDeployIndex < deployQueue.length) {
+       const alloc = deployQueue[currentDeployIndex];
+       const delaySecs = Number(form.vestingStartDelayMinutes || 5) * 60;
+       const baseTime = block?.timestamp ? Number(block.timestamp) : Math.floor(Date.now() / 1000);
+       const startTs = BigInt(baseTime + delaySecs);
+       const supply = parseUnits(alloc.amount || form.totalSupply, 18);
+       const durSec = BigInt(durationSeconds);
+       writeContract({
+         address: FACTORY_ADDRESS,
+         abi: factoryAbi,
+         functionName: 'deployTokenAndVesting',
+         args: [form.tokenName, form.tokenSymbol, supply, alloc.address as `0x${string}`, startTs, durSec],
+       });
+    } else if (currentDeployIndex >= deployQueue.length && deployQueue.length > 0) {
+      // Finished queue
+      setCurrentDeployIndex(-1);
+    }
+  }, [currentDeployIndex]);
 
   const copyToClipboard = (text: string, label: string) => {
     navigator.clipboard.writeText(text);
@@ -162,7 +235,7 @@ export const DeployWizard: React.FC = () => {
   }
 
   // Success state
-  if (deployResult) {
+  if (deployResults.length > 0 && currentDeployIndex === -1) {
     return (
       <div className="glass-card p-8 animate-slide-up">
         <div className="text-center mb-8">
@@ -174,50 +247,32 @@ export const DeployWizard: React.FC = () => {
         </div>
 
         <div className="space-y-4">
-          {/* Token Address */}
-          <div className="bg-stone-50 rounded-xl p-4 border border-stone-200">
-            <p className="text-xs text-stone-500 mb-1 font-medium uppercase tracking-wider">ERC-20 Token</p>
-            <div className="flex items-center gap-2">
-              <code className="text-sm font-mono text-primary flex-1 truncate">{deployResult.tokenAddress}</code>
-              <button onClick={() => copyToClipboard(deployResult.tokenAddress, 'token')} className="p-1.5 rounded-lg hover:bg-stone-200 transition-colors">
-                <Copy className="w-4 h-4 text-stone-500" />
-              </button>
-              <a href={getExplorerLink('address', deployResult.tokenAddress)} target="_blank" rel="noopener noreferrer" className="p-1.5 rounded-lg hover:bg-stone-200 transition-colors">
-                <ExternalLink className="w-4 h-4 text-stone-500" />
-              </a>
+          {deployResults.map((res, idx) => (
+            <div key={idx} className="bg-stone-50 rounded-xl p-4 border border-stone-200">
+              <p className="text-xs text-stone-500 mb-1 font-medium uppercase tracking-wider">Deployment #{idx + 1}</p>
+              <div className="flex flex-col gap-2">
+                <div className="flex items-center gap-2">
+                  <span className="text-[10px] uppercase font-bold text-stone-400 w-16">TOKEN</span>
+                  <code className="text-sm font-mono text-primary flex-1 truncate">{res.tokenAddress}</code>
+                  <a href={getExplorerLink('address', res.tokenAddress)} target="_blank" rel="noopener noreferrer" className="p-1 rounded hover:bg-stone-200"><ExternalLink className="w-3 h-3 text-stone-500" /></a>
+                </div>
+                <div className="flex items-center gap-2">
+                  <span className="text-[10px] uppercase font-bold text-stone-400 w-16">VESTING</span>
+                  <code className="text-sm font-mono text-primary flex-1 truncate">{res.vestingAddress}</code>
+                  <a href={getExplorerLink('address', res.vestingAddress)} target="_blank" rel="noopener noreferrer" className="p-1 rounded hover:bg-stone-200"><ExternalLink className="w-3 h-3 text-stone-500" /></a>
+                </div>
+                <div className="flex items-center gap-2">
+                  <span className="text-[10px] uppercase font-bold text-stone-400 w-16">TX</span>
+                  <code className="text-sm font-mono text-stone-600 flex-1 truncate">{res.txHash}</code>
+                  <a href={getExplorerLink('tx', res.txHash)} target="_blank" rel="noopener noreferrer" className="p-1 rounded hover:bg-stone-200"><ExternalLink className="w-3 h-3 text-stone-500" /></a>
+                </div>
+              </div>
             </div>
-            {copied === 'token' && <p className="text-xs text-success mt-1">Copied!</p>}
-          </div>
-
-          {/* Vesting Address */}
-          <div className="bg-stone-50 rounded-xl p-4 border border-stone-200">
-            <p className="text-xs text-stone-500 mb-1 font-medium uppercase tracking-wider">Vesting Contract</p>
-            <div className="flex items-center gap-2">
-              <code className="text-sm font-mono text-primary flex-1 truncate">{deployResult.vestingAddress}</code>
-              <button onClick={() => copyToClipboard(deployResult.vestingAddress, 'vesting')} className="p-1.5 rounded-lg hover:bg-stone-200 transition-colors">
-                <Copy className="w-4 h-4 text-stone-500" />
-              </button>
-              <a href={getExplorerLink('address', deployResult.vestingAddress)} target="_blank" rel="noopener noreferrer" className="p-1.5 rounded-lg hover:bg-stone-200 transition-colors">
-                <ExternalLink className="w-4 h-4 text-stone-500" />
-              </a>
-            </div>
-            {copied === 'vesting' && <p className="text-xs text-success mt-1">Copied!</p>}
-          </div>
-
-          {/* Tx Hash */}
-          <div className="bg-stone-50 rounded-xl p-4 border border-stone-200">
-            <p className="text-xs text-stone-500 mb-1 font-medium uppercase tracking-wider">Transaction</p>
-            <div className="flex items-center gap-2">
-              <code className="text-sm font-mono text-stone-600 flex-1 truncate">{deployResult.txHash}</code>
-              <a href={getExplorerLink('tx', deployResult.txHash)} target="_blank" rel="noopener noreferrer" className="p-1.5 rounded-lg hover:bg-stone-200 transition-colors">
-                <ExternalLink className="w-4 h-4 text-stone-500" />
-              </a>
-            </div>
-          </div>
+          ))}
         </div>
 
         <div className="mt-6 flex gap-3">
-          <button onClick={() => { setDeployResult(null); setStep(0); reset(); setForm({ tokenName: '', tokenSymbol: '', totalSupply: '', beneficiary: '', vestingStartDateTime: new Date(Date.now() + 60000).toISOString().slice(0, 16), vestingMinutes: '' }); }} className="btn-secondary flex-1">
+          <button onClick={() => { setDeployResults([]); setDeployQueue([]); setStep(0); reset(); setForm({ tokenName: '', tokenSymbol: '', totalSupply: '', beneficiary: '', vestingStartDelayMinutes: '5', vestingMinutes: '', allocations: [] }); }} className="btn-secondary flex-1">
             Deploy Another
           </button>
         </div>
@@ -298,63 +353,96 @@ export const DeployWizard: React.FC = () => {
               </div>
             </div>
 
-            <div>
-              <label htmlFor="beneficiary" className="label-text">Beneficiary Wallet Address</label>
-              <input id="beneficiary" className="input-field" placeholder="0x..." value={form.beneficiary} onChange={(e) => updateForm('beneficiary', e.target.value)} />
-              {errors.beneficiary && <p className="text-xs text-red-400 mt-1 flex items-center gap-1"><AlertCircle className="w-3 h-3" />{errors.beneficiary}</p>}
-              <p className="text-xs text-stone-900/30 mt-1">The wallet that will receive tokens over the vesting period</p>
-            </div>
+            <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+              {/* Panel A: Manual Input */}
+              <div className="space-y-4 bg-stone-50 p-5 border-2 border-stone-900 rounded-none brutalist-panel">
+                <h3 className="text-sm font-bold uppercase tracking-widest border-b-2 border-stone-900 pb-2 flex justify-between">
+                  Panel A: Manual Input
+                  {form.allocations.length > 0 && <span className="bg-stone-900 text-white px-2 py-0.5 rounded text-[10px]">{form.allocations.length} IN BATCH</span>}
+                </h3>
 
-            <div>
-              <label htmlFor="vestingStartDateTime" className="label-text">Vesting Start Date</label>
-              <input id="vestingStartDateTime" className="input-field" type="datetime-local" value={form.vestingStartDateTime} onChange={(e) => updateForm('vestingStartDateTime', e.target.value)} />
-              {errors.vestingStartDateTime && <p className="text-xs text-red-400 mt-1 flex items-center gap-1"><AlertCircle className="w-3 h-3" />{errors.vestingStartDateTime}</p>}
-              <p className="text-xs text-stone-900/30 mt-1">When vesting begins (defaults to now)</p>
-            </div>
-
-            <div>
-              <label htmlFor="vestingMinutes" className="label-text">Vesting Duration (minutes) <span className="text-stone-400">— Testing Mode</span></label>
-              <input id="vestingMinutes" className="input-field" type="number" placeholder="e.g. 5" min="1" max="1440" value={form.vestingMinutes} onChange={(e) => updateForm('vestingMinutes', e.target.value)} />
-              {errors.vestingMinutes && <p className="text-xs text-red-400 mt-1 flex items-center gap-1"><AlertCircle className="w-3 h-3" />{errors.vestingMinutes}</p>}
-              {form.vestingMinutes && Number(form.vestingMinutes) > 0 && (
-                <p className="text-xs text-stone-900/30 mt-1">= <strong className="text-stone-500">{totalMinutes} minute installments</strong> ({durationSeconds} seconds total)</p>
-              )}
-            </div>
-
-            <div className="bg-orange-50 rounded-xl p-4 border border-orange-200 space-y-3">
-              <div className="flex items-center gap-2 mb-1">
-                <Timer className="w-4 h-4 text-primary" />
-                <span className="text-xs font-semibold text-stone-600 uppercase tracking-wider">Per-Minute EMI Schedule</span>
-              </div>
-              <p className="text-xs text-stone-500">
-                <strong className="text-stone-900">{Number(form.totalSupply).toLocaleString()} {form.tokenSymbol}</strong> will unlock over <strong className="text-stone-900">{totalMinutes} minutes</strong>.
-              </p>
-              {perMinuteEMI > 0 && (
-                <div className="grid grid-cols-2 gap-3">
-                  <div className="bg-stone-50 rounded-lg p-2.5 border border-stone-200">
-                    <p className="text-[10px] text-stone-900/30 uppercase tracking-wider">Per-Minute EMI</p>
-                    <p className="text-sm font-bold text-primary">~{perMinuteEMI.toLocaleString(undefined, { maximumFractionDigits: 2 })} <span className="text-xs font-normal text-stone-900/30">{form.tokenSymbol}</span></p>
-                  </div>
-                  <div className="bg-stone-50 rounded-lg p-2.5 border border-stone-200">
-                    <p className="text-[10px] text-stone-900/30 uppercase tracking-wider">Per 5-Min EMI</p>
-                    <p className="text-sm font-bold text-success">~{per5MinEMI.toLocaleString(undefined, { maximumFractionDigits: 2 })} <span className="text-xs font-normal text-stone-900/30">{form.tokenSymbol}</span></p>
-                  </div>
+                <div>
+                  <label htmlFor="beneficiary" className="label-text">Beneficiary Wallet Address</label>
+                  <input id="beneficiary" className="input-field rounded-none border-2 border-stone-900" placeholder="0x..." value={form.beneficiary} onChange={(e) => updateForm('beneficiary', e.target.value)} />
+                  {errors.beneficiary && <p className="text-xs text-red-400 mt-1 flex items-center gap-1"><AlertCircle className="w-3 h-3" />{errors.beneficiary}</p>}
                 </div>
-              )}
-              {vestingEndDate && (
-                <p className="text-xs text-stone-500">
-                  <Calendar className="w-3.5 h-3.5 inline mr-1 text-primary" />
-                  Beneficiary can claim anytime • Fully vested by {vestingEndDate.toLocaleString()}
-                </p>
-              )}
+
+                <div>
+                  <label className="label-text">Amount ({form.tokenSymbol})</label>
+                  <input className="input-field rounded-none border-2 border-stone-900" type="number" placeholder="e.g. 1000" value={tempAmount} onChange={(e) => setTempAmount(e.target.value)} />
+                </div>
+
+                <button
+                  onClick={handleAddManual}
+                  disabled={!isAddress(form.beneficiary) || Number(tempAmount) <= 0}
+                  className="w-full bg-[#ff5f1f] text-white font-mono text-xs font-bold uppercase tracking-widest p-3 disabled:opacity-50 hover:opacity-90 transition-none"
+                >
+                  ADD TO BATCH
+                </button>
+              </div>
+
+              {/* Panel B: Bulk Allocation */}
+              <div className="space-y-4 bg-stone-50 p-5 border-2 border-stone-900 rounded-none brutalist-panel flex flex-col">
+                <h3 className="text-sm font-bold uppercase tracking-widest border-b-2 border-stone-900 pb-2">Panel B: Bulk Allocation</h3>
+
+                <div className="relative flex-grow border-2 border-dashed border-stone-400 hover:border-[#ff5f1f] bg-stone-200/50 flex flex-col items-center justify-center p-8 transition-colors group min-h-[140px]">
+                  <input type="file" accept=".csv,.json" onChange={handleFileUpload} className="absolute inset-0 w-full h-full opacity-0 cursor-pointer" />
+                  <UploadCloud className="w-8 h-8 text-stone-400 group-hover:text-[#ff5f1f] mb-3" />
+                  <p className="text-xs font-mono font-bold text-center text-stone-600 uppercase">Drag CSV or JSON</p>
+                  <p className="text-[10px] font-mono text-center text-stone-500 mt-1 uppercase">(Format: address, amount)</p>
+                  {form.allocations.length > 0 && (
+                    <div className="mt-4 inline-flex items-center gap-2 bg-stone-900 text-white px-3 py-1 rounded-full text-xs font-mono">
+                      <Check className="w-3 h-3" /> {form.allocations.length} Loaded
+                    </div>
+                  )}
+                </div>
+
+                <div className={`p-4 border-2 ${isValidAllocationSummary ? 'border-[#00d26a] bg-[#00d26a]/10' : 'border-stone-900 bg-stone-200'}`}>
+                  <p className="font-mono text-xs uppercase font-bold flex items-center justify-between">
+                    <span>Validation Summary:</span>
+                    {isValidAllocationSummary && <Check className="w-4 h-4 text-[#00d26a]" />}
+                  </p>
+                  <p className="font-mono text-[11px] mt-2">
+                    Total Allocated: <span className="font-black text-[#ff5f1f]">{allocatedTokensDisplay.toLocaleString()} {form.tokenSymbol}</span> across <span className="font-black">{totalUsers} User{totalUsers !== 1 ? 's' : ''}</span>
+                  </p>
+                </div>
+              </div>
             </div>
 
-            <div className="flex justify-between pt-2">
-              <button className="btn-secondary flex items-center gap-2" onClick={() => setStep(0)}>
+            {/* Vesting Timing — full-width row below both panels */}
+            <div className="bg-stone-50 border-2 border-stone-900 p-5 grid grid-cols-1 md:grid-cols-2 gap-6">
+              <div>
+                <label className="label-text">Vesting Start Delay</label>
+                <div className="flex items-center gap-3 mt-1">
+                  <input
+                    id="vestingStartDelayMinutes"
+                    className="input-field rounded-none border-2 border-stone-900 w-28 text-center font-mono font-bold text-lg"
+                    type="number"
+                    min="1"
+                    max="1440"
+                    value={form.vestingStartDelayMinutes}
+                    onChange={(e) => updateForm('vestingStartDelayMinutes', e.target.value)}
+                  />
+                  <span className="font-mono text-sm text-stone-600 uppercase font-bold">minutes from NOW</span>
+                </div>
+                <p className="text-[10px] text-stone-400 font-mono mt-1 uppercase">
+                  Starts: {new Date(Date.now() + Number(form.vestingStartDelayMinutes || 5) * 60000).toLocaleTimeString()} ({new Date(Date.now() + Number(form.vestingStartDelayMinutes || 5) * 60000).toLocaleDateString()})
+                </p>
+              </div>
+
+              <div>
+                <label htmlFor="vestingMinutes" className="label-text">Vesting Duration (minutes)</label>
+                <input id="vestingMinutes" className="input-field rounded-none border-2 border-stone-900 mt-1" type="number" placeholder="e.g. 5" min="1" max="1440" value={form.vestingMinutes} onChange={(e) => updateForm('vestingMinutes', e.target.value)} />
+                {errors.vestingMinutes && <p className="text-xs text-red-400 mt-1 flex items-center gap-1"><AlertCircle className="w-3 h-3" />{errors.vestingMinutes}</p>}
+              </div>
+            </div>
+
+            <div className="flex justify-between pt-2 border-t-2 border-stone-900">
+              <button className="btn-secondary flex items-center gap-2 rounded-none border-2 border-stone-900 uppercase font-bold text-[11px] tracking-widest" onClick={() => setStep(0)}>
                 <ChevronLeft className="w-4 h-4" /> Back
               </button>
-              <button className="btn-primary flex items-center gap-2" disabled={!canProceed(1)} onClick={() => setStep(2)}>
-                Review <ChevronRight className="w-4 h-4" />
+              <button className="btn-primary flex items-center gap-2 rounded-none uppercase font-bold text-[11px] tracking-widest" disabled={!canProceed(1)} onClick={() => setStep(2)}>
+                Next <ChevronRight className="w-4 h-4" />
               </button>
             </div>
           </div>
@@ -392,7 +480,7 @@ export const DeployWizard: React.FC = () => {
                   </div>
                   <div className="flex justify-between">
                     <span className="text-stone-500">Vesting Start</span>
-                    <span>{new Date(form.vestingStartDateTime).toLocaleString()}</span>
+                    <span>{new Date(Date.now() + Number(form.vestingStartDelayMinutes || 5) * 60000).toLocaleString()}</span>
                   </div>
                   <div className="flex justify-between">
                     <span className="text-stone-500">Duration</span>
@@ -444,8 +532,8 @@ export const DeployWizard: React.FC = () => {
               <button className="btn-secondary flex items-center gap-2" onClick={() => setStep(1)} disabled={isWriting || isConfirming}>
                 <ChevronLeft className="w-4 h-4" /> Back
               </button>
-              <button className="btn-primary flex items-center gap-2" onClick={handleDeploy} disabled={isWriting || isConfirming}>
-                {isWriting ? <><Loader2 className="w-4 h-4 animate-spin" /> Signing...</> : isConfirming ? <><Loader2 className="w-4 h-4 animate-spin" /> Confirming...</> : <><Sparkles className="w-4 h-4" /> Deploy Token + Vesting</>}
+              <button className="btn-primary flex items-center gap-2" onClick={handleDeploy} disabled={isWriting || isConfirming || (currentDeployIndex >= 0 && currentDeployIndex < deployQueue.length)}>
+                {currentDeployIndex >= 0 ? <><Loader2 className="w-4 h-4 animate-spin" /> Batch Deploying {currentDeployIndex + 1}/{deployQueue.length}...</> : isWriting ? <><Loader2 className="w-4 h-4 animate-spin" /> Signing...</> : isConfirming ? <><Loader2 className="w-4 h-4 animate-spin" /> Confirming...</> : <><Sparkles className="w-4 h-4" /> Deploy Token + Vesting</>}
               </button>
             </div>
           </div>
