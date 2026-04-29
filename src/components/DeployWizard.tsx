@@ -28,7 +28,7 @@ interface DeployResult {
   txHash: string;
 }
 
-const STEPS = ['Vesting Setup', 'Review & Deploy'];
+const STEPS = ['Token Details', 'Vesting Setup', 'Review & Deploy'];
 
 export const DeployWizard: React.FC = () => {
   const { address, isConnected } = useAccount();
@@ -42,11 +42,11 @@ export const DeployWizard: React.FC = () => {
   const [tempAmount, setTempAmount] = useState('');
 
   const [form, setForm] = useState<FormData>({
-    tokenName: 'Vesta Token',
-    tokenSymbol: 'VST',
-    totalSupply: '1000000',
+    tokenName: '',
+    tokenSymbol: '',
+    totalSupply: '',
     beneficiary: '',
-    vestingStartDelayMinutes: '5',
+    vestingStartDelayMinutes: '5', // Default: start 5 minutes from now
     vestingMinutes: '',
     allocations: [],
   });
@@ -108,6 +108,13 @@ export const DeployWizard: React.FC = () => {
   const errors = useMemo(() => {
     const e: Record<string, string> = {};
     if (step >= 0) {
+      if (!form.tokenName.trim()) e.tokenName = 'Token name is required';
+      if (!form.tokenSymbol.trim()) e.tokenSymbol = 'Symbol is required';
+      else if (form.tokenSymbol.length > 11) e.tokenSymbol = 'Symbol too long (max 11)';
+      if (!form.totalSupply) e.totalSupply = 'Supply is required';
+      else if (Number(form.totalSupply) <= 0) e.totalSupply = 'Supply must be greater than 0';
+    }
+    if (step >= 1) {
       if (form.allocations.length === 0) {
         if (!form.beneficiary) e.beneficiary = 'Beneficiary address is required';
         else if (!isAddress(form.beneficiary)) e.beneficiary = 'Invalid Ethereum address';
@@ -122,12 +129,15 @@ export const DeployWizard: React.FC = () => {
   }, [form, step]);
 
   const totalAllocatedFromCSV = form.allocations.reduce((acc, curr) => acc + Number(curr.amount || 0), 0);
+  const GLOBAL_MAX_SUPPLY = Number(form.totalSupply || 0);
+  const isExceedingCap = (totalAllocatedFromCSV + Number(tempAmount || 0)) > GLOBAL_MAX_SUPPLY;
   const totalUsers = form.allocations.length > 0 ? form.allocations.length : (isAddress(form.beneficiary) ? 1 : 0);
   const allocatedTokensDisplay = form.allocations.length > 0 ? totalAllocatedFromCSV : (form.totalSupply ? Number(form.totalSupply) : 0);
   const isValidAllocationSummary = totalUsers > 0 && allocatedTokensDisplay > 0;
 
   const canProceed = (s: number) => {
-    if (s === 0) return isValidAllocationSummary && Number(form.vestingStartDelayMinutes) >= 1 && Number(form.vestingMinutes) > 0 && Number(form.vestingMinutes) <= 1440;
+    if (s === 0) return form.tokenName && form.tokenSymbol && Number(form.totalSupply) > 0;
+    if (s === 1) return isValidAllocationSummary && Number(form.vestingStartDelayMinutes) >= 1 && Number(form.vestingMinutes) > 0 && Number(form.vestingMinutes) <= 1440;
     return true;
   };
 
@@ -290,8 +300,50 @@ export const DeployWizard: React.FC = () => {
       </div>
 
       <div className="glass-card p-6 sm:p-8">
-        {/* Step 0: Vesting Setup */}
+        {/* Step 0: Token Details */}
         {step === 0 && (
+          <div className="space-y-6 page-enter">
+            <div className="flex items-center gap-3 mb-2">
+              <div className="w-10 h-10 rounded-xl bg-orange-100 flex items-center justify-center border border-orange-200">
+                <Coins className="w-5 h-5 text-primary" />
+              </div>
+              <div>
+                <h2 className="text-xl font-bold">Token Details</h2>
+                <p className="text-sm text-stone-500">Configure your ERC-20 token</p>
+              </div>
+            </div>
+
+            <div>
+              <label htmlFor="tokenName" className="label-text">Token Name</label>
+              <input id="tokenName" className="input-field" placeholder="e.g. My Awesome Token" value={form.tokenName} onChange={(e) => updateForm('tokenName', e.target.value)} />
+              {step >= 0 && errors.tokenName && <p className="text-xs text-red-400 mt-1 flex items-center gap-1"><AlertCircle className="w-3 h-3" />{errors.tokenName}</p>}
+            </div>
+
+            <div>
+              <label htmlFor="tokenSymbol" className="label-text">Token Symbol</label>
+              <input id="tokenSymbol" className="input-field" placeholder="e.g. MAT" value={form.tokenSymbol} onChange={(e) => updateForm('tokenSymbol', e.target.value.toUpperCase())} maxLength={11} />
+              {errors.tokenSymbol && <p className="text-xs text-red-400 mt-1 flex items-center gap-1"><AlertCircle className="w-3 h-3" />{errors.tokenSymbol}</p>}
+            </div>
+
+            <div>
+              <label htmlFor="totalSupply" className="label-text">Total Supply</label>
+              <input id="totalSupply" className="input-field" type="number" placeholder="e.g. 1000000" min="1" value={form.totalSupply} onChange={(e) => updateForm('totalSupply', e.target.value)} />
+              {errors.totalSupply && <p className="text-xs text-red-400 mt-1 flex items-center gap-1"><AlertCircle className="w-3 h-3" />{errors.totalSupply}</p>}
+              {form.totalSupply && Number(form.totalSupply) > 0 && (
+                <p className="text-xs text-stone-900/30 mt-1">{Number(form.totalSupply).toLocaleString()} {form.tokenSymbol || 'tokens'} will be minted</p>
+              )}
+            </div>
+
+            <div className="flex justify-end pt-2">
+              <button className="btn-primary flex items-center gap-2" disabled={!canProceed(0)} onClick={() => setStep(1)}>
+                Next <ChevronRight className="w-4 h-4" />
+              </button>
+            </div>
+          </div>
+        )}
+
+        {/* Step 1: Vesting Setup */}
+        {step === 1 && (
           <div className="space-y-6 page-enter">
             <div className="flex items-center gap-3 mb-2">
               <div className="w-10 h-10 rounded-xl bg-orange-100 flex items-center justify-center border border-orange-200">
@@ -320,12 +372,24 @@ export const DeployWizard: React.FC = () => {
                 <div className="flex flex-col gap-4">
                   <div>
                     <label className="label-text">Amount ({form.tokenSymbol})</label>
-                    <input className="input-field rounded-none border-2 border-stone-900" type="number" placeholder="e.g. 1000" value={tempAmount} onChange={(e) => setTempAmount(e.target.value)} />
+                    <input 
+                      className={`input-field rounded-none border-2 ${isExceedingCap ? 'border-red-500 focus:border-red-500 focus:ring-red-500' : 'border-stone-900'}`} 
+                      type="number" 
+                      placeholder="e.g. 1000" 
+                      value={tempAmount} 
+                      onChange={(e) => setTempAmount(e.target.value)} 
+                    />
                   </div>
+
+                  {isExceedingCap && (
+                    <div className="text-[11px] font-bold text-red-500 uppercase tracking-widest border border-red-500/20 bg-red-500/5 p-2">
+                      Error: Total allocation exceeds the Global Cap of {GLOBAL_MAX_SUPPLY.toLocaleString()} {form.tokenSymbol}.
+                    </div>
+                  )}
 
                   <button
                     onClick={handleAddManual}
-                    disabled={!isAddress(form.beneficiary) || Number(tempAmount) <= 0}
+                    disabled={!isAddress(form.beneficiary) || Number(tempAmount) <= 0 || isExceedingCap}
                     className="w-full bg-[#ff5f1f] text-white font-mono text-xs font-bold uppercase tracking-widest p-3 disabled:opacity-50 hover:opacity-90 transition-none"
                   >
                     ADD TO BATCH
@@ -389,16 +453,19 @@ export const DeployWizard: React.FC = () => {
               </div>
             </div>
 
-            <div className="flex justify-end pt-2 border-t-2 border-stone-900">
-              <button className="btn-primary flex items-center gap-2 rounded-none uppercase font-bold text-[11px] tracking-widest" disabled={!canProceed(0)} onClick={() => setStep(1)}>
+            <div className="flex justify-between pt-2 border-t-2 border-stone-900">
+              <button className="btn-secondary flex items-center gap-2 rounded-none border-2 border-stone-900 uppercase font-bold text-[11px] tracking-widest" onClick={() => setStep(0)}>
+                <ChevronLeft className="w-4 h-4" /> Back
+              </button>
+              <button className="btn-primary flex items-center gap-2 rounded-none uppercase font-bold text-[11px] tracking-widest" disabled={!canProceed(1)} onClick={() => setStep(2)}>
                 Next <ChevronRight className="w-4 h-4" />
               </button>
             </div>
           </div>
         )}
 
-        {/* Step 1: Review & Deploy */}
-        {step === 1 && (
+        {/* Step 2: Review & Deploy */}
+        {step === 2 && (
           <div className="space-y-6 page-enter">
             <div className="flex items-center gap-3 mb-2">
               <div className="w-10 h-10 rounded-xl bg-emerald-500/10 flex items-center justify-center border border-emerald-500/20">
@@ -411,7 +478,14 @@ export const DeployWizard: React.FC = () => {
             </div>
 
             <div className="space-y-3">
-              {/* Token Details hidden */}
+              <div className="bg-stone-50 rounded-xl p-4 border border-stone-200">
+                <h3 className="text-xs font-medium text-stone-500 uppercase tracking-wider mb-3">Token</h3>
+                <div className="grid grid-cols-3 gap-4 text-sm">
+                  <div><p className="text-stone-500 text-xs">Name</p><p className="font-medium">{form.tokenName}</p></div>
+                  <div><p className="text-stone-500 text-xs">Symbol</p><p className="font-medium font-mono">{form.tokenSymbol}</p></div>
+                  <div><p className="text-stone-500 text-xs">Supply</p><p className="font-medium">{Number(form.totalSupply).toLocaleString()}</p></div>
+                </div>
+              </div>
 
               <div className="bg-stone-50 rounded-xl p-4 border border-stone-200">
                 <h3 className="text-xs font-medium text-stone-500 uppercase tracking-wider mb-3">Vesting</h3>
@@ -471,7 +545,7 @@ export const DeployWizard: React.FC = () => {
             )}
 
             <div className="flex justify-between pt-2">
-              <button className="btn-secondary flex items-center gap-2" onClick={() => setStep(0)} disabled={isWriting || isConfirming}>
+              <button className="btn-secondary flex items-center gap-2" onClick={() => setStep(1)} disabled={isWriting || isConfirming}>
                 <ChevronLeft className="w-4 h-4" /> Back
               </button>
               <button className="btn-primary flex items-center gap-2" onClick={handleDeploy} disabled={isWriting || isConfirming || (currentDeployIndex >= 0 && currentDeployIndex < deployQueue.length)}>
