@@ -3,7 +3,7 @@ import { useAccount, useReadContract, useWriteContract, useWaitForTransactionRec
 import { useQueryClient } from '@tanstack/react-query';
 import { formatUnits, isAddress } from 'viem';
 import { vestingWalletAbi, erc20Abi } from '../config/abi';
-import { Bolt, Activity, Cpu, RefreshCw, AlertCircle } from 'lucide-react';
+import { Bolt, Activity, Cpu, RefreshCw, AlertCircle, Loader2 } from 'lucide-react';
 
 export const ClaimDashboard: React.FC = () => {
   const { address, isConnected } = useAccount();
