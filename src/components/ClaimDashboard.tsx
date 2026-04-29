@@ -1,5 +1,6 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useCallback } from 'react';
 import { useAccount, useReadContract, useWriteContract, useWaitForTransactionReceipt, useBlock } from 'wagmi';
+import { useQueryClient } from '@tanstack/react-query';
 import { formatUnits, isAddress } from 'viem';
 import { vestingWalletAbi, erc20Abi } from '../config/abi';
 import { Bolt, Activity, Cpu, RefreshCw, AlertCircle } from 'lucide-react';
@@ -72,19 +73,17 @@ export const ClaimDashboard: React.FC = () => {
     query: { enabled },
   });
 
-  // Global refetch helper — refreshes all 4 contract reads at once
-  const refetchAll = React.useCallback(() => {
-    if (!enabled) return;
-    refetchStart();
-    refetchDuration();
-    refetchReleased();
-    refetchBalance();
-  }, [enabled, refetchStart, refetchDuration, refetchReleased, refetchBalance]);
+  const queryClient = useQueryClient();
+
+  // Nuclear cache invalidation — clears ALL wagmi contract reads unconditionally
+  const invalidateAll = useCallback(() => {
+    queryClient.invalidateQueries();
+  }, [queryClient]);
 
   // On mount / wallet connect: pull fresh data immediately
   useEffect(() => {
     if (isConnected && enabled) {
-      refetchAll();
+      invalidateAll();
     }
   }, [isConnected, enabled]);
 
@@ -93,21 +92,23 @@ export const ClaimDashboard: React.FC = () => {
 
   const [showSuccess, setShowSuccess] = useState(false);
 
-  // Poll every 2s while tx is being confirmed so UI updates the moment it lands
+  // Poll every 2s while tx is confirming — catches the new balance the instant the block lands
   useEffect(() => {
     if (!isConfirmingClaim) return;
-    const poll = setInterval(refetchAll, 2000);
+    const poll = setInterval(invalidateAll, 2000);
     return () => clearInterval(poll);
-  }, [isConfirmingClaim, refetchAll]);
+  }, [isConfirmingClaim, invalidateAll]);
 
-  // On confirmed: full global refetch + show success banner
+  // On confirmed: full cache bust + success banner
   useEffect(() => {
     if (isClaimConfirmed) {
-      refetchAll();
+      invalidateAll();
+      // Second invalidation after a short delay to catch RPC propagation lag
+      setTimeout(invalidateAll, 1500);
       setShowSuccess(true);
       setTimeout(() => setShowSuccess(false), 5000);
     }
-  }, [isClaimConfirmed, refetchAll]);
+  }, [isClaimConfirmed, invalidateAll]);
 
   const handleClaim = () => {
     if (!isAddress(vestingAddr) || !isAddress(tokenAddr)) return;
@@ -123,9 +124,9 @@ export const ClaimDashboard: React.FC = () => {
     if (isRefreshing) return;
     setIsRefreshing(true);
     try {
-      await Promise.all([refetchStart(), refetchDuration(), refetchReleased(), refetchBalance()]);
+      invalidateAll();
     } finally {
-      setTimeout(() => setIsRefreshing(false), 500); // Small delay for visual feedback
+      setTimeout(() => setIsRefreshing(false), 800);
     }
   };
 
