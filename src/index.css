@@ -1,0 +1,146 @@
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+@layer base {
+  * {
+    margin: 0;
+    padding: 0;
+    box-sizing: border-box;
+  }
+
+  html {
+    scroll-behavior: smooth;
+  }
+
+  body {
+    @apply font-sans antialiased;
+    background-color: #f9f9f7;
+    background-image: 
+        linear-gradient(#f0f0e8 1px, transparent 1px),
+        linear-gradient(90deg, #f0f0e8 1px, transparent 1px);
+    background-size: 24px 24px;
+    color: #1c1c1a;
+    min-height: 100vh;
+  }
+
+  ::selection {
+    @apply bg-primary-500/30 text-[#1c1c1a];
+  }
+
+  /* Custom scrollbar */
+  ::-webkit-scrollbar {
+    width: 6px;
+  }
+  ::-webkit-scrollbar-track {
+    @apply bg-surface-900;
+  }
+  ::-webkit-scrollbar-thumb {
+    @apply bg-brand-700/50 rounded-full;
+  }
+  ::-webkit-scrollbar-thumb:hover {
+    @apply bg-brand-600/70;
+  }
+}
+
+@layer components {
+  .glass-card {
+    @apply bg-white border border-stone-200 shadow-sm rounded-none;
+  }
+
+  .glass-card-hover {
+    @apply glass-card transition-all duration-300;
+  }
+  .glass-card-hover:hover {
+    @apply border-stone-300 shadow-md bg-stone-50;
+  }
+
+  .input-field {
+    @apply w-full bg-[#f9f9f7] border border-[#e2e2d9] p-3 font-mono text-sm 
+           text-stone-900 placeholder-stone-400
+           focus:outline-none focus:border-primary focus:ring-1 focus:ring-primary rounded-none
+           transition-all duration-200;
+  }
+  .input-field:hover {
+    @apply bg-stone-100;
+  }
+
+  .btn-primary {
+    @apply inline-flex justify-center items-center bg-primary text-white font-mono font-bold text-sm tracking-widest uppercase px-8 py-4
+           disabled:opacity-50 disabled:cursor-not-allowed hover:bg-orange-600 transition-colors shadow-none;
+  }
+
+  .btn-secondary {
+    @apply inline-flex justify-center items-center bg-stone-200 text-stone-900 border border-stone-300 font-mono font-bold text-sm tracking-widest uppercase px-8 py-4
+           hover:bg-stone-300 transition-colors shadow-none;
+  }
+
+  .label-text {
+    @apply font-mono text-xs font-bold text-stone-500 uppercase tracking-widest block mb-2;
+  }
+
+  .step-badge {
+    @apply inline-flex items-center justify-center w-8 h-8 rounded-none text-xs font-bold
+           bg-stone-200 text-stone-500 border border-stone-300;
+  }
+
+  .step-badge-active {
+    @apply inline-flex items-center justify-center w-8 h-8 rounded-none text-xs font-bold
+           bg-primary text-white border border-primary shadow-lg shadow-primary/30;
+  }
+
+  .step-badge-done {
+    @apply inline-flex items-center justify-center w-8 h-8 rounded-none text-xs font-bold
+           bg-success/20 text-success border border-success/30;
+  }
+
+  .status-pill {
+    @apply inline-flex items-center gap-1.5 px-3 py-1 rounded-full text-xs font-medium;
+  }
+
+  .shimmer-bg {
+    background: linear-gradient(90deg, transparent 0%, rgba(255,255,255,0.04) 50%, transparent 100%);
+    background-size: 200% 100%;
+    animation: shimmer 2s linear infinite;
+  }
+
+  .gradient-text {
+    @apply bg-gradient-to-r from-brand-400 via-purple-400 to-brand-300 bg-clip-text text-transparent;
+  }
+}
+
+/* RainbowKit overrides */
+[data-rk] {
+  --rk-colors-accentColor: #5c7cfa !important;
+  --rk-radii-connectButton: 12px !important;
+}
+
+/* Animations for page transitions */
+.page-enter {
+  animation: slideUp 0.4s ease-out, fadeIn 0.4s ease-out;
+}
+
+/* Floating orb background decoration */
+.orb {
+  position: fixed;
+  border-radius: 50%;
+  filter: blur(80px);
+  pointer-events: none;
+  z-index: 0;
+}
+.orb-1 {
+  width: 400px;
+  height: 400px;
+  background: rgba(92, 124, 250, 0.08);
+  top: -100px;
+  right: -100px;
+  animation: float 8s ease-in-out infinite;
+}
+.orb-2 {
+  width: 300px;
+  height: 300px;
+  background: rgba(118, 75, 162, 0.06);
+  bottom: -50px;
+  left: -50px;
+  animation: float 10s ease-in-out infinite reverse;
+}

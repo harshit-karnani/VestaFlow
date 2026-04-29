@@ -1,0 +1,338 @@
+<!DOCTYPE html>
+
+<html class="light" lang="en"><head>
+<meta charset="utf-8"/>
+<meta content="width=device-width, initial-scale=1.0" name="viewport"/>
+<script src="https://cdn.tailwindcss.com?plugins=forms,container-queries"></script>
+<link href="https://fonts.googleapis.com/css2?family=Syne:wght@800&amp;family=IBM+Plex+Mono:wght@400;500;600;700&amp;family=Inter:wght@400;500&amp;display=swap" rel="stylesheet"/>
+<link href="https://fonts.googleapis.com/css2?family=Material+Symbols+Outlined:wght,FILL@100..700,0..1&amp;display=swap" rel="stylesheet"/>
+<link href="https://fonts.googleapis.com/css2?family=Material+Symbols+Outlined:wght,FILL@100..700,0..1&amp;display=swap" rel="stylesheet"/>
+<script id="tailwind-config">
+        tailwind.config = {
+          darkMode: "class",
+          theme: {
+            extend: {
+              "colors": {
+                      "on-primary-fixed": "#390c00",
+                      "secondary-fixed": "#62ff95",
+                      "surface-container-lowest": "#ffffff",
+                      "on-surface-variant": "#5b4138",
+                      "secondary-container": "#54fd8f",
+                      "on-surface": "#271813",
+                      "surface-container-highest": "#f9dcd4",
+                      "on-primary": "#ffffff",
+                      "tertiary-fixed-dim": "#8dcdff",
+                      "error-container": "#ffdad6",
+                      "primary-fixed-dim": "#ffb59c",
+                      "on-secondary-container": "#007237",
+                      "on-secondary-fixed": "#00210b",
+                      "primary": "#ab3600",
+                      "on-secondary-fixed-variant": "#005226",
+                      "primary-fixed": "#ffdbcf",
+                      "outline-variant": "#e3bfb3",
+                      "on-tertiary-fixed-variant": "#004b70",
+                      "surface-bright": "#fff8f6",
+                      "on-primary-fixed-variant": "#832700",
+                      "on-tertiary-container": "#00304a",
+                      "secondary": "#006d34",
+                      "on-tertiary-fixed": "#001e30",
+                      "inverse-primary": "#ffb59c",
+                      "surface-container-low": "#fff1ed",
+                      "on-secondary": "#ffffff",
+                      "tertiary-fixed": "#cae6ff",
+                      "surface-variant": "#f9dcd4",
+                      "on-error": "#ffffff",
+                      "inverse-surface": "#3d2c27",
+                      "tertiary": "#006493",
+                      "outline": "#8f7066",
+                      "surface-dim": "#f0d4cc",
+                      "error": "#ba1a1a",
+                      "secondary-fixed-dim": "#2fe378",
+                      "primary-container": "#ff5f1f",
+                      "on-error-container": "#93000a",
+                      "surface-tint": "#ab3600",
+                      "surface": "#fff8f6",
+                      "surface-container": "#ffe9e3",
+                      "on-primary-container": "#561700",
+                      "on-tertiary": "#ffffff",
+                      "background": "#fff8f6",
+                      "on-background": "#271813",
+                      "inverse-on-surface": "#ffede8",
+                      "tertiary-container": "#009de4",
+                      "surface-container-high": "#ffe2d9"
+              },
+              "borderRadius": {
+                      "DEFAULT": "0px",
+                      "lg": "0px",
+                      "xl": "0px",
+                      "full": "9999px"
+              },
+              "spacing": {
+                      "margin_desktop": "64px",
+                      "sm": "8px",
+                      "lg": "24px",
+                      "md": "16px",
+                      "gutter": "1px",
+                      "xs": "4px",
+                      "grid_size": "24px",
+                      "xl": "48px",
+                      "unit": "4px"
+              },
+              "fontFamily": {
+                      "body-md": ["Inter"],
+                      "data-sm": ["IBM Plex Mono"],
+                      "data-lg": ["IBM Plex Mono"],
+                      "h2": ["Syne"],
+                      "h3": ["Syne"],
+                      "label-caps": ["IBM Plex Mono"],
+                      "h1": ["Syne"],
+                      "body-lg": ["Inter"]
+              },
+              "fontSize": {
+                      "body-md": ["16px", {"lineHeight": "1.6", "fontWeight": "400"}],
+                      "data-sm": ["13px", {"lineHeight": "1.4", "letterSpacing": "0.02em", "fontWeight": "400"}],
+                      "data-lg": ["16px", {"lineHeight": "1.4", "fontWeight": "500"}],
+                      "h2": ["48px", {"lineHeight": "1.1", "letterSpacing": "-0.01em", "fontWeight": "800"}],
+                      "h3": ["32px", {"lineHeight": "1.2", "letterSpacing": "0em", "fontWeight": "800"}],
+                      "label-caps": ["12px", {"lineHeight": "1", "fontWeight": "600"}],
+                      "h1": ["64px", {"lineHeight": "1.1", "letterSpacing": "-0.02em", "fontWeight": "800"}],
+                      "body-lg": ["18px", {"lineHeight": "1.6", "fontWeight": "400"}]
+              }
+            },
+          },
+        }
+      </script>
+<style>
+        body {
+            background-color: #f9f9f7;
+            background-image: 
+                linear-gradient(#f0f0e8 1px, transparent 1px),
+                linear-gradient(90deg, #f0f0e8 1px, transparent 1px);
+            background-size: 24px 24px;
+        }
+        .material-symbols-outlined {
+            font-variation-settings: 'FILL' 0, 'wght' 400, 'GRAD' 0, 'opsz' 24;
+        }
+        .technical-border {
+            border: 1px solid #e2e2d9;
+        }
+        .sidebar-active {
+            border-left: 4px solid #ff5f1f;
+            background-color: #f0f0e8;
+        }
+    </style>
+</head>
+<body class="min-h-screen flex text-on-background">
+<!-- SideNavBar -->
+<aside class="w-64 fixed h-screen border-r border-stone-200 bg-stone-50 flex flex-col py-8 z-50">
+<div class="px-6 mb-12">
+<h1 class="font-mono font-black text-stone-900 tracking-tighter text-lg uppercase">SOLAR_SYSTEM_V1</h1>
+<p class="font-mono text-[10px] tracking-widest text-secondary mt-1 uppercase">STATUS: OPERATIONAL</p>
+</div>
+<nav class="flex-grow flex flex-col gap-1">
+<a class="flex items-center gap-3 px-6 py-4 font-mono text-[11px] tracking-widest text-stone-500 border-l-4 border-transparent hover:bg-stone-200 transition-all duration-75 uppercase" href="#">
+<span class="material-symbols-outlined" data-icon="settings_input_component">settings_input_component</span>
+                01 // CONFIG
+            </a>
+<a class="flex items-center gap-3 px-6 py-4 font-mono text-[11px] tracking-widest text-stone-500 border-l-4 border-transparent hover:bg-stone-200 transition-all duration-75 uppercase" href="#">
+<span class="material-symbols-outlined" data-icon="hub">hub</span>
+                02 // NODES
+            </a>
+<a class="flex items-center gap-3 px-6 py-4 font-mono text-[11px] tracking-widest text-stone-500 border-l-4 border-transparent hover:bg-stone-200 transition-all duration-75 uppercase" href="#">
+<span class="material-symbols-outlined" data-icon="account_balance_wallet">account_balance_wallet</span>
+                03 // ASSETS
+            </a>
+<a class="flex items-center gap-3 px-6 py-4 font-mono text-[11px] tracking-widest text-stone-900 font-bold border-l-4 border-orange-600 bg-stone-100 transition-all duration-75 uppercase" href="#">
+<span class="material-symbols-outlined" data-icon="payments">payments</span>
+                04 // CLAIMS
+            </a>
+</nav>
+<div class="px-6 mb-8">
+<button class="w-full bg-primary-container text-white py-3 font-mono text-[11px] font-bold tracking-widest uppercase hover:opacity-90 transition-none">
+                LAUNCH ASSET
+            </button>
+</div>
+<div class="mt-auto px-6 pt-8 border-t border-stone-200 flex flex-col gap-2">
+<a class="flex items-center gap-2 font-mono text-[11px] tracking-widest text-stone-500 hover:text-orange-600 uppercase" href="#">
+<span class="material-symbols-outlined text-sm" data-icon="help">help</span>
+                SUPPORT
+            </a>
+<a class="flex items-center gap-2 font-mono text-[11px] tracking-widest text-stone-500 hover:text-orange-600 uppercase" href="#">
+<span class="material-symbols-outlined text-sm" data-icon="description">description</span>
+                DOCS
+            </a>
+</div>
+</aside>
+<!-- Main Content Area -->
+<main class="ml-64 flex-grow relative">
+<!-- TopNavBar -->
+<header class="h-20 bg-stone-50 border-b border-stone-200 flex justify-between items-center px-16 sticky top-0 z-40">
+<div class="flex items-center gap-12">
+<div class="text-xl font-black tracking-tighter text-stone-900 uppercase">AGV SOLAR LAUNCHPAD</div>
+<nav class="hidden lg:flex items-center gap-8 font-mono uppercase tracking-widest text-xs">
+<a class="text-stone-500 font-medium hover:text-orange-600 transition-none" href="#">DASHBOARD</a>
+<a class="text-stone-500 font-medium hover:text-orange-600 transition-none" href="#">ASSETS</a>
+<a class="text-stone-500 font-medium hover:text-orange-600 transition-none" href="#">TERMINAL</a>
+<a class="text-stone-900 border-b-2 border-orange-600 pb-1 font-bold" href="#">REPORTS</a>
+</nav>
+</div>
+<div class="flex items-center gap-6">
+<div class="flex items-center gap-4 text-stone-500">
+<span class="material-symbols-outlined cursor-pointer hover:text-orange-600" data-icon="settings">settings</span>
+<span class="material-symbols-outlined cursor-pointer hover:text-orange-600" data-icon="notifications">notifications</span>
+</div>
+<button class="bg-primary text-white px-6 py-2 font-mono text-xs font-bold tracking-widest uppercase hover:bg-orange-600 transition-none">
+                    CONNECT WALLET
+                </button>
+</div>
+</header>
+<!-- Claim Content -->
+<div class="p-16">
+<!-- Header Section -->
+<div class="mb-12 border-b border-stone-200 pb-8 flex justify-between items-end">
+<div>
+<span class="font-data-sm text-primary mb-2 block tracking-widest uppercase font-bold">TERMINAL ACCESS // NODE_V1</span>
+<h2 class="font-h2 text-stone-900 uppercase">04 // CLAIMS &amp; SETTLEMENT</h2>
+</div>
+<div class="text-right">
+<div class="font-data-sm text-stone-400 uppercase tracking-tighter">LAST UPDATED</div>
+<div class="font-data-lg text-stone-900">2024-10-24 14:02:11 UTC</div>
+</div>
+</div>
+<div class="grid grid-cols-12 gap-gutter bg-stone-200 border border-stone-200">
+<!-- Main Claim Card -->
+<div class="col-span-8 bg-[#f9f9f7] p-12">
+<div class="flex flex-col gap-8">
+<div>
+<p class="font-data-sm text-stone-500 uppercase tracking-[0.2em] mb-4 flex items-center gap-2">
+<span class="w-3 h-3 bg-secondary-fixed"></span>
+                                AVAILABLE TO CLAIM
+                            </p>
+<h1 class="font-h1 text-[#00d26a] tracking-tight tabular-nums">482.95 SOLR</h1>
+<p class="font-data-sm text-stone-400 mt-2">≈ $12,408.31 USD EQUIVALENT</p>
+</div>
+<button class="w-full bg-primary-container text-white py-10 flex items-center justify-center gap-6 group hover:brightness-110 transition-none">
+<span class="font-h2 text-white uppercase text-4xl">CLAIM ASSETS</span>
+<span class="material-symbols-outlined text-4xl" data-icon="bolt">bolt</span>
+</button>
+<div class="grid grid-cols-3 gap-8 pt-8 border-t border-stone-200">
+<div>
+<div class="font-data-sm text-stone-400 uppercase mb-1">STAKED AMOUNT</div>
+<div class="font-data-lg text-stone-900">12,500.00</div>
+</div>
+<div>
+<div class="font-data-sm text-stone-400 uppercase mb-1">ACCURAL RATE</div>
+<div class="font-data-lg text-stone-900">0.082% / HR</div>
+</div>
+<div>
+<div class="font-data-sm text-stone-400 uppercase mb-1">NEXT EPOCH</div>
+<div class="font-data-lg text-stone-900">02:14:55</div>
+</div>
+</div>
+</div>
+</div>
+<!-- Technical Details Side -->
+<div class="col-span-4 bg-[#f0f0e8] p-8 flex flex-col gap-8">
+<div>
+<h3 class="font-label-caps text-stone-900 uppercase mb-4 border-b border-stone-300 pb-2 flex items-center justify-between">
+                            SYSTEM METRICS
+                            <span class="material-symbols-outlined text-sm" data-icon="analytics">analytics</span>
+</h3>
+<div class="flex flex-col gap-4 font-data-sm">
+<div class="flex justify-between items-center border-b border-stone-200 pb-2">
+<span class="text-stone-500">NETWORK HEALTH</span>
+<span class="text-secondary font-bold">99.98%</span>
+</div>
+<div class="flex justify-between items-center border-b border-stone-200 pb-2">
+<span class="text-stone-500">GAS PRICE (SOLR)</span>
+<span class="text-stone-900 font-bold">0.0004</span>
+</div>
+<div class="flex justify-between items-center border-b border-stone-200 pb-2">
+<span class="text-stone-500">NODE LATENCY</span>
+<span class="text-stone-900 font-bold">14MS</span>
+</div>
+</div>
+</div>
+<div class="mt-auto">
+<div class="bg-stone-900 p-6 text-white">
+<div class="font-data-sm text-stone-400 uppercase mb-4">NODE ARCHITECTURE</div>
+<div class="flex items-center gap-4 mb-6">
+<div class="w-12 h-12 border-2 border-orange-500 flex items-center justify-center">
+<span class="material-symbols-outlined text-orange-500" data-icon="memory">memory</span>
+</div>
+<div>
+<div class="font-data-lg text-white">SOLAR_ARRAY_04</div>
+<div class="font-data-sm text-secondary-fixed">ACTIVE // EMITTING</div>
+</div>
+</div>
+<div class="h-24 w-full bg-stone-800 relative overflow-hidden">
+<div class="absolute inset-0 opacity-30" style="background-image: repeating-linear-gradient(45deg, transparent, transparent 10px, #ff5f1f 10px, #ff5f1f 11px);"></div>
+<div class="absolute bottom-0 left-0 right-0 h-1/2 bg-gradient-to-t from-orange-500/20 to-transparent"></div>
+<div class="absolute top-1/2 left-0 right-0 border-t border-dashed border-orange-500/50"></div>
+</div>
+</div>
+</div>
+</div>
+</div>
+<!-- Transaction History -->
+<div class="mt-12 bg-white border border-stone-200">
+<div class="bg-stone-900 px-8 py-4 flex justify-between items-center">
+<h3 class="font-label-caps text-white uppercase tracking-widest">TRANSACTION HISTORY // LOG</h3>
+<div class="flex gap-4">
+<button class="font-data-sm text-white/50 hover:text-white uppercase transition-none">EXPORT CSV</button>
+<button class="font-data-sm text-white/50 hover:text-white uppercase transition-none">REFRESH</button>
+</div>
+</div>
+<table class="w-full text-left font-data-sm">
+<thead>
+<tr class="border-b border-stone-200">
+<th class="px-8 py-4 font-bold text-stone-400 uppercase tracking-tighter">DATE_UTC</th>
+<th class="px-8 py-4 font-bold text-stone-400 uppercase tracking-tighter">ACTION_ID</th>
+<th class="px-8 py-4 font-bold text-stone-400 uppercase tracking-tighter">ASSET_VAL</th>
+<th class="px-8 py-4 font-bold text-stone-400 uppercase tracking-tighter">STATUS</th>
+<th class="px-8 py-4 font-bold text-stone-400 uppercase tracking-tighter">TX_HASH</th>
+</tr>
+</thead>
+<tbody class="divide-y divide-stone-100">
+<tr class="hover:bg-stone-50 transition-none">
+<td class="px-8 py-4 text-stone-900">2024.10.23 09:44</td>
+<td class="px-8 py-4 text-stone-900">CLAIM_ASSET_441</td>
+<td class="px-8 py-4 font-bold">+142.12 SOLR</td>
+<td class="px-8 py-4">
+<span class="border border-secondary text-secondary px-2 py-0.5 text-[10px] font-bold">SETTLED</span>
+</td>
+<td class="px-8 py-4 text-stone-400 font-mono">0x44fa...91a2</td>
+</tr>
+<tr class="hover:bg-stone-50 transition-none">
+<td class="px-8 py-4 text-stone-900">2024.10.22 21:12</td>
+<td class="px-8 py-4 text-stone-900">CLAIM_ASSET_440</td>
+<td class="px-8 py-4 font-bold">+98.44 SOLR</td>
+<td class="px-8 py-4">
+<span class="border border-secondary text-secondary px-2 py-0.5 text-[10px] font-bold">SETTLED</span>
+</td>
+<td class="px-8 py-4 text-stone-400 font-mono">0x22be...12e1</td>
+</tr>
+<tr class="hover:bg-stone-50 transition-none">
+<td class="px-8 py-4 text-stone-900">2024.10.22 04:05</td>
+<td class="px-8 py-4 text-stone-900">NODE_BONUS_V2</td>
+<td class="px-8 py-4 font-bold">+25.00 SOLR</td>
+<td class="px-8 py-4">
+<span class="border border-secondary text-secondary px-2 py-0.5 text-[10px] font-bold">SETTLED</span>
+</td>
+<td class="px-8 py-4 text-stone-400 font-mono">0x99cc...88f4</td>
+</tr>
+</tbody>
+</table>
+</div>
+</div>
+<!-- Footer -->
+<footer class="bg-stone-900 border-t border-stone-800 flex justify-between items-center px-16 py-4 w-full mt-24">
+<div class="font-mono text-[10px] tracking-tighter text-white font-black uppercase">© 2024 AGV SOLAR TERMINAL. ALL RIGHTS RESERVED.</div>
+<div class="flex gap-8 font-mono text-[10px] tracking-tighter text-stone-500">
+<a class="hover:text-orange-500 uppercase" href="#">PRIVACY</a>
+<a class="hover:text-orange-500 uppercase" href="#">TERMS</a>
+<a class="hover:text-orange-500 uppercase" href="#">SYSTEM STATUS</a>
+</div>
+</footer>
+</main>
+</body></html>
