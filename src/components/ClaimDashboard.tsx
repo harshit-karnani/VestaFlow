@@ -163,7 +163,7 @@ export const ClaimDashboard: React.FC = () => {
     setLastMinute(minutesElapsedTotal);
   }, [now, start, lastMinute]);
 
-  const accuralRatePerHour = (totalTokens / (dur / 3600)).toFixed(3);
+  const accrualRatePerMinute = dur > 0 ? (totalTokens / (dur / 60)).toFixed(3) : "0.000";
 
   const handleInitialize = () => {
     setIsInitializing(true);
@@ -310,7 +310,7 @@ export const ClaimDashboard: React.FC = () => {
               </div>
               <div>
                 <div className="font-mono text-xs text-stone-400 uppercase mb-1">ACCRUAL RATE</div>
-                <div className="font-mono text-lg font-medium text-stone-900">{accuralRatePerHour} / HR</div>
+                <div className="font-mono text-lg font-medium text-stone-900">{accrualRatePerMinute} / MIN</div>
               </div>
               <div>
                 <div className="font-mono text-xs text-stone-400 uppercase mb-1">ALREADY RELEASED</div>
