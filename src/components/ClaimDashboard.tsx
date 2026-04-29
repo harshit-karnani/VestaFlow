@@ -163,7 +163,7 @@ export const ClaimDashboard: React.FC = () => {
     setLastMinute(minutesElapsedTotal);
   }, [now, start, lastMinute]);
 
-  const accrualRatePerMinute = dur > 0 ? (totalTokens / (dur / 60)).toFixed(3) : "0.000";
+  const accrualRatePerMinute = dur > 0 ? (totalTokens / (dur / 60)).toFixed(3) : "N/A";
 
   const handleInitialize = () => {
     setIsInitializing(true);

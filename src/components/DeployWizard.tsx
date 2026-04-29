@@ -122,7 +122,7 @@ export const DeployWizard: React.FC = () => {
       if (!form.vestingStartDelayMinutes) e.vestingStartDelayMinutes = 'Start delay is required';
       else if (Number(form.vestingStartDelayMinutes) < 1) e.vestingStartDelayMinutes = 'Start delay must be at least 1 minute';
       if (!form.vestingMinutes) e.vestingMinutes = 'Duration is required';
-      else if (Number(form.vestingMinutes) <= 0) e.vestingMinutes = 'Duration must be at least 1 minute';
+      else if (Number(form.vestingMinutes) <= 0) e.vestingMinutes = 'Duration must be at least 1 minute for streaming logic. For instant transfers, use a standard wallet transfer.';
       else if (Number(form.vestingMinutes) > 1440) e.vestingMinutes = 'Duration cannot exceed 1440 minutes (24h)';
     }
     return e;
