@@ -9,6 +9,11 @@ export const ClaimDashboard: React.FC = () => {
   const { address, isConnected } = useAccount();
   const [vestingAddr, setVestingAddr] = useState(() => localStorage.getItem('vf_vestingAddr') || '');
   const [tokenAddr, setTokenAddr] = useState(() => localStorage.getItem('vf_tokenAddr') || '');
+  
+  // Terminal Access State
+  const [isAuthorized, setIsAuthorized] = useState(false);
+  const [isInitializing, setIsInitializing] = useState(false);
+  const [loadingText, setLoadingText] = useState('Establishing Handshake...');
 
   const { data: block } = useBlock({ watch: true });
   const [currentTimestamp, setCurrentTimestamp] = useState<bigint>(0n);
@@ -26,13 +31,14 @@ export const ClaimDashboard: React.FC = () => {
 
   // Real-time ticking 1-second interval
   useEffect(() => {
+    if (!isAuthorized) return;
     const interval = setInterval(() => {
       setCurrentTimestamp(prev => prev > 0n ? prev + 1n : BigInt(Math.floor(Date.now() / 1000)));
     }, 1000);
     return () => clearInterval(interval);
-  }, []);
+  }, [isAuthorized]);
 
-  const enabled = isAddress(vestingAddr) && isAddress(tokenAddr);
+  const enabled = isAuthorized && isAddress(vestingAddr) && isAddress(tokenAddr);
 
   const { data: startTime, refetch: refetchStart } = useReadContract({
     address: vestingAddr as `0x${string}`,
@@ -159,7 +165,25 @@ export const ClaimDashboard: React.FC = () => {
 
   const accuralRatePerHour = (totalTokens / (dur / 3600)).toFixed(3);
 
-  if (!enabled) {
+  const handleInitialize = () => {
+    setIsInitializing(true);
+    setLoadingText('Establishing Handshake...');
+    
+    setTimeout(() => {
+      setLoadingText('Syncing with Sepolia Node...');
+    }, 500);
+    
+    setTimeout(() => {
+      setLoadingText('Access Granted.');
+    }, 1000);
+    
+    setTimeout(() => {
+      setIsInitializing(false);
+      setIsAuthorized(true);
+    }, 1500);
+  };
+
+  if (!isAuthorized) {
     return (
       <div className="p-16 text-[#1c1c1a] font-sans">
         <div className="max-w-2xl mx-auto bg-stone-300 p-8 border border-stone-300">
@@ -185,12 +209,23 @@ export const ClaimDashboard: React.FC = () => {
                 placeholder="0x..."
               />
             </div>
-            <div className="font-mono text-xs text-stone-500 bg-stone-200 p-3 mt-4 text-center tracking-widest uppercase">
-              Enter valid addresses to access terminal
-            </div>
+            <button
+              onClick={handleInitialize}
+              disabled={!isAddress(vestingAddr) || !isAddress(tokenAddr) || isInitializing}
+              className="w-full bg-primary text-white font-mono font-bold text-sm tracking-widest uppercase py-4 mt-4 disabled:opacity-50 hover:bg-orange-600 transition-colors flex justify-center items-center gap-3 shadow-[0_0_15px_rgba(255,95,31,0.3)] hover:shadow-[0_0_25px_rgba(255,95,31,0.5)]"
+            >
+              {isInitializing ? (
+                <>
+                  <Loader2 className="w-5 h-5 animate-spin" />
+                  {loadingText}
+                </>
+              ) : (
+                'INITIALIZE SYSTEM ACCESS'
+              )}
+            </button>
             <button
               onClick={() => { setVestingAddr(''); setTokenAddr(''); localStorage.removeItem('vf_vestingAddr'); localStorage.removeItem('vf_tokenAddr'); }}
-              className="w-full text-stone-400 font-mono text-xs uppercase tracking-widest py-2 hover:text-stone-700 transition-colors"
+              className="w-full text-stone-400 font-mono text-xs uppercase tracking-widest py-2 hover:text-stone-700 transition-colors mt-2"
             >
               Clear Inputs
             </button>
