@@ -140,7 +140,8 @@ export const DeployWizard: React.FC = () => {
   const amountIsValid = tempAmount !== '' && parsedTemp >= MIN_ALLOCATION && parsedTemp <= MAX_ALLOCATION && !isExceedingCap;
   const totalUsers = form.allocations.length > 0 ? form.allocations.length : (isAddress(form.beneficiary) ? 1 : 0);
   const allocatedTokensDisplay = form.allocations.length > 0 ? totalAllocatedFromCSV : (form.totalSupply ? Number(form.totalSupply) : 0);
-  const isValidAllocationSummary = totalUsers > 0 && allocatedTokensDisplay > 0;
+  const isBatchExactMatch = form.allocations.length === 0 || totalAllocatedFromCSV === GLOBAL_MAX_SUPPLY;
+  const isValidAllocationSummary = totalUsers > 0 && allocatedTokensDisplay > 0 && isBatchExactMatch;
 
   const canProceed = (s: number) => {
     if (s === 0) return form.tokenName && form.tokenSymbol && Number(form.totalSupply) > 0;
@@ -448,6 +449,12 @@ export const DeployWizard: React.FC = () => {
                   <p className="font-mono text-[11px] mt-2">
                     Total Allocated: <span className="font-black text-[#ff5f1f]">{allocatedTokensDisplay.toLocaleString()} {form.tokenSymbol}</span> across <span className="font-black">{totalUsers} User{totalUsers !== 1 ? 's' : ''}</span>
                   </p>
+                  {form.allocations.length > 0 && !isBatchExactMatch && (
+                    <p className="font-mono text-[10px] mt-2 text-red-500 font-bold tracking-tight uppercase border-t border-stone-300 pt-2">
+                      ⚠ Batch allocations must exactly equal the Global Cap of {GLOBAL_MAX_SUPPLY.toLocaleString()} {form.tokenSymbol}.<br/>
+                      Difference: {(GLOBAL_MAX_SUPPLY - totalAllocatedFromCSV).toLocaleString()} {form.tokenSymbol}
+                    </p>
+                  )}
                 </div>
               </div>
             </div>
