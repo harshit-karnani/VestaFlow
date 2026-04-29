@@ -130,7 +130,14 @@ export const DeployWizard: React.FC = () => {
 
   const totalAllocatedFromCSV = form.allocations.reduce((acc, curr) => acc + Number(curr.amount || 0), 0);
   const GLOBAL_MAX_SUPPLY = Number(form.totalSupply || 0);
-  const isExceedingCap = (totalAllocatedFromCSV + Number(tempAmount || 0)) > GLOBAL_MAX_SUPPLY;
+  const MIN_ALLOCATION = 10;
+  const MAX_ALLOCATION = 1000000;
+  const parsedTemp = Number(tempAmount || 0);
+  const isBelowMin = tempAmount !== '' && parsedTemp < MIN_ALLOCATION;
+  const isAboveMax = parsedTemp > MAX_ALLOCATION;
+  const isExceedingCap = GLOBAL_MAX_SUPPLY > 0 && (totalAllocatedFromCSV + parsedTemp) > GLOBAL_MAX_SUPPLY;
+  const amountHasError = isBelowMin || isAboveMax || isExceedingCap;
+  const amountIsValid = tempAmount !== '' && parsedTemp >= MIN_ALLOCATION && parsedTemp <= MAX_ALLOCATION && !isExceedingCap;
   const totalUsers = form.allocations.length > 0 ? form.allocations.length : (isAddress(form.beneficiary) ? 1 : 0);
   const allocatedTokensDisplay = form.allocations.length > 0 ? totalAllocatedFromCSV : (form.totalSupply ? Number(form.totalSupply) : 0);
   const isValidAllocationSummary = totalUsers > 0 && allocatedTokensDisplay > 0;
@@ -369,27 +376,47 @@ export const DeployWizard: React.FC = () => {
                   {errors.beneficiary && <p className="text-xs text-red-400 mt-1 flex items-center gap-1"><AlertCircle className="w-3 h-3" />{errors.beneficiary}</p>}
                 </div>
 
-                <div className="flex flex-col gap-4">
+                <div className="flex flex-col gap-3">
                   <div>
-                    <label className="label-text">Amount ({form.tokenSymbol})</label>
-                    <input 
-                      className={`input-field rounded-none border-2 ${isExceedingCap ? 'border-red-500 focus:border-red-500 focus:ring-red-500' : 'border-stone-900'}`} 
-                      type="number" 
-                      placeholder="e.g. 1000" 
-                      value={tempAmount} 
-                      onChange={(e) => setTempAmount(e.target.value)} 
+                    <label className="label-text">Amount ({form.tokenSymbol || 'J'})</label>
+                    <input
+                      className={`input-field rounded-none border-2 ${
+                        amountHasError ? 'border-red-500 focus:border-red-500 focus:ring-red-500'
+                        : amountIsValid ? 'border-green-500 focus:border-green-500'
+                        : 'border-stone-900'
+                      }`}
+                      type="number"
+                      placeholder={`Min: ${MIN_ALLOCATION.toLocaleString()} — Max: ${MAX_ALLOCATION.toLocaleString()}`}
+                      value={tempAmount}
+                      onChange={(e) => setTempAmount(e.target.value)}
                     />
                   </div>
 
-                  {isExceedingCap && (
+                  {/* Validation Stack — errors never overlap */}
+                  {isBelowMin && (
                     <div className="text-[11px] font-bold text-red-500 uppercase tracking-widest border border-red-500/20 bg-red-500/5 p-2">
-                      Error: Total allocation exceeds the Global Cap of {GLOBAL_MAX_SUPPLY.toLocaleString()} {form.tokenSymbol}.
+                      ⚠ Minimum allocation is {MIN_ALLOCATION.toLocaleString()} {form.tokenSymbol || 'J'} to prevent network dust.
+                    </div>
+                  )}
+                  {isAboveMax && !isBelowMin && (
+                    <div className="text-[11px] font-bold text-red-500 uppercase tracking-widest border border-red-500/20 bg-red-500/5 p-2">
+                      ⚠ Maximum allocation per stream is {MAX_ALLOCATION.toLocaleString()} {form.tokenSymbol || 'J'}.
+                    </div>
+                  )}
+                  {isExceedingCap && !isBelowMin && !isAboveMax && (
+                    <div className="text-[11px] font-bold text-red-500 uppercase tracking-widest border border-red-500/20 bg-red-500/5 p-2">
+                      ⚠ Total allocation exceeds the Global Cap of {GLOBAL_MAX_SUPPLY.toLocaleString()} {form.tokenSymbol || 'J'}.
+                    </div>
+                  )}
+                  {amountIsValid && (
+                    <div className="text-[11px] font-bold text-green-600 uppercase tracking-widest">
+                      ✓ Valid Range
                     </div>
                   )}
 
                   <button
                     onClick={handleAddManual}
-                    disabled={!isAddress(form.beneficiary) || Number(tempAmount) <= 0 || isExceedingCap}
+                    disabled={!isAddress(form.beneficiary) || !amountIsValid}
                     className="w-full bg-[#ff5f1f] text-white font-mono text-xs font-bold uppercase tracking-widest p-3 disabled:opacity-50 hover:opacity-90 transition-none"
                   >
                     ADD TO BATCH
