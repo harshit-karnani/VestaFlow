@@ -5,7 +5,7 @@ import { vestingWalletAbi, erc20Abi } from '../config/abi';
 import { Bolt, Activity, Cpu, RefreshCw, AlertCircle } from 'lucide-react';
 
 export const ClaimDashboard: React.FC = () => {
-  const { address } = useAccount();
+  const { address, isConnected } = useAccount();
   const [vestingAddr, setVestingAddr] = useState(() => localStorage.getItem('vf_vestingAddr') || '');
   const [tokenAddr, setTokenAddr] = useState(() => localStorage.getItem('vf_tokenAddr') || '');
   const [hasLookedUp, setHasLookedUp] = useState(() => localStorage.getItem('vf_hasLookedUp') === 'true');
@@ -33,18 +33,20 @@ export const ClaimDashboard: React.FC = () => {
     return () => clearInterval(interval);
   }, [hasLookedUp]);
 
-  const { data: startTime } = useReadContract({
+  const enabled = hasLookedUp && isAddress(vestingAddr) && isAddress(tokenAddr);
+
+  const { data: startTime, refetch: refetchStart } = useReadContract({
     address: vestingAddr as `0x${string}`,
     abi: vestingWalletAbi,
     functionName: 'start',
-    query: { enabled: hasLookedUp && isAddress(vestingAddr) },
+    query: { enabled },
   });
 
-  const { data: duration } = useReadContract({
+  const { data: duration, refetch: refetchDuration } = useReadContract({
     address: vestingAddr as `0x${string}`,
     abi: vestingWalletAbi,
     functionName: 'duration',
-    query: { enabled: hasLookedUp && isAddress(vestingAddr) },
+    query: { enabled },
   });
 
   const { data: releasedRaw, refetch: refetchReleased } = useReadContract({
@@ -52,7 +54,7 @@ export const ClaimDashboard: React.FC = () => {
     abi: vestingWalletAbi,
     functionName: 'released',
     args: [tokenAddr as `0x${string}`],
-    query: { enabled: hasLookedUp && isAddress(vestingAddr) },
+    query: { enabled },
   });
 
   const { data: tokenBalance, refetch: refetchBalance } = useReadContract({
@@ -60,29 +62,52 @@ export const ClaimDashboard: React.FC = () => {
     abi: erc20Abi,
     functionName: 'balanceOf',
     args: [vestingAddr as `0x${string}`],
-    query: { enabled: hasLookedUp && isAddress(tokenAddr) },
+    query: { enabled },
   });
 
   const { data: tokenSymbol } = useReadContract({
     address: tokenAddr as `0x${string}`,
     abi: erc20Abi,
     functionName: 'symbol',
-    query: { enabled: hasLookedUp && isAddress(tokenAddr) },
+    query: { enabled },
   });
+
+  // Global refetch helper — refreshes all 4 contract reads at once
+  const refetchAll = React.useCallback(() => {
+    if (!enabled) return;
+    refetchStart();
+    refetchDuration();
+    refetchReleased();
+    refetchBalance();
+  }, [enabled, refetchStart, refetchDuration, refetchReleased, refetchBalance]);
+
+  // On mount / wallet connect: pull fresh data immediately
+  useEffect(() => {
+    if (isConnected && enabled) {
+      refetchAll();
+    }
+  }, [isConnected, enabled]);
 
   const { writeContract: claimTokens, isPending: isClaiming, data: claimTxHash } = useWriteContract();
   const { isLoading: isConfirmingClaim, isSuccess: isClaimConfirmed } = useWaitForTransactionReceipt({ hash: claimTxHash });
 
   const [showSuccess, setShowSuccess] = useState(false);
 
+  // Poll every 2s while tx is being confirmed so UI updates the moment it lands
+  useEffect(() => {
+    if (!isConfirmingClaim) return;
+    const poll = setInterval(refetchAll, 2000);
+    return () => clearInterval(poll);
+  }, [isConfirmingClaim, refetchAll]);
+
+  // On confirmed: full global refetch + show success banner
   useEffect(() => {
     if (isClaimConfirmed) {
-      refetchReleased();
-      refetchBalance();
+      refetchAll();
       setShowSuccess(true);
       setTimeout(() => setShowSuccess(false), 5000);
     }
-  }, [isClaimConfirmed, refetchReleased, refetchBalance]);
+  }, [isClaimConfirmed, refetchAll]);
 
   const handleClaim = () => {
     if (!isAddress(vestingAddr) || !isAddress(tokenAddr)) return;
@@ -98,7 +123,7 @@ export const ClaimDashboard: React.FC = () => {
     if (isRefreshing) return;
     setIsRefreshing(true);
     try {
-      await Promise.all([refetchReleased(), refetchBalance()]);
+      await Promise.all([refetchStart(), refetchDuration(), refetchReleased(), refetchBalance()]);
     } finally {
       setTimeout(() => setIsRefreshing(false), 500); // Small delay for visual feedback
     }
