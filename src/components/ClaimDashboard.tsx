@@ -9,7 +9,6 @@ export const ClaimDashboard: React.FC = () => {
   const { address, isConnected } = useAccount();
   const [vestingAddr, setVestingAddr] = useState(() => localStorage.getItem('vf_vestingAddr') || '');
   const [tokenAddr, setTokenAddr] = useState(() => localStorage.getItem('vf_tokenAddr') || '');
-  const [hasLookedUp, setHasLookedUp] = useState(() => localStorage.getItem('vf_hasLookedUp') === 'true');
 
   const { data: block } = useBlock({ watch: true });
   const [currentTimestamp, setCurrentTimestamp] = useState<bigint>(0n);
@@ -27,14 +26,13 @@ export const ClaimDashboard: React.FC = () => {
 
   // Real-time ticking 1-second interval
   useEffect(() => {
-    if (!hasLookedUp) return;
     const interval = setInterval(() => {
       setCurrentTimestamp(prev => prev > 0n ? prev + 1n : BigInt(Math.floor(Date.now() / 1000)));
     }, 1000);
     return () => clearInterval(interval);
-  }, [hasLookedUp]);
+  }, []);
 
-  const enabled = hasLookedUp && isAddress(vestingAddr) && isAddress(tokenAddr);
+  const enabled = isAddress(vestingAddr) && isAddress(tokenAddr);
 
   const { data: startTime, refetch: refetchStart } = useReadContract({
     address: vestingAddr as `0x${string}`,
@@ -143,7 +141,7 @@ export const ClaimDashboard: React.FC = () => {
   const progress = dur > 0 ? Math.min(1, elapsed / dur) : 1;
   const vestedAmount = totalTokens * progress;
   const claimable = Math.max(0, vestedAmount - released);
-  const displayClaimable = hasLookedUp ? claimable.toFixed(4) : "0.0000";
+  const displayClaimable = enabled ? claimable.toFixed(4) : "0.0000";
 
   const isFuture = now < start;
   const timeUntilStartSecs = isFuture ? start - now : 0;
@@ -161,7 +159,7 @@ export const ClaimDashboard: React.FC = () => {
 
   const accuralRatePerHour = (totalTokens / (dur / 3600)).toFixed(3);
 
-  if (!hasLookedUp) {
+  if (!enabled) {
     return (
       <div className="p-16 text-[#1c1c1a] font-sans">
         <div className="max-w-2xl mx-auto bg-stone-300 p-8 border border-stone-300">
@@ -187,18 +185,14 @@ export const ClaimDashboard: React.FC = () => {
                 placeholder="0x..."
               />
             </div>
+            <div className="font-mono text-xs text-stone-500 bg-stone-200 p-3 mt-4 text-center tracking-widest uppercase">
+              Enter valid addresses to access terminal
+            </div>
             <button
-              onClick={() => { setHasLookedUp(true); localStorage.setItem('vf_hasLookedUp', 'true'); }}
-              disabled={!isAddress(vestingAddr) || !isAddress(tokenAddr)}
-              className="w-full bg-primary text-white font-mono font-bold text-sm tracking-widest uppercase py-4 mt-4 disabled:opacity-50 hover:bg-orange-600 transition-colors"
-            >
-              LOAD VESTING DATA
-            </button>
-            <button
-              onClick={() => { setVestingAddr(''); setTokenAddr(''); setHasLookedUp(false); localStorage.removeItem('vf_vestingAddr'); localStorage.removeItem('vf_tokenAddr'); localStorage.removeItem('vf_hasLookedUp'); }}
+              onClick={() => { setVestingAddr(''); setTokenAddr(''); localStorage.removeItem('vf_vestingAddr'); localStorage.removeItem('vf_tokenAddr'); }}
               className="w-full text-stone-400 font-mono text-xs uppercase tracking-widest py-2 hover:text-stone-700 transition-colors"
             >
-              Reset / Use Different Contract
+              Clear Inputs
             </button>
           </div>
         </div>
